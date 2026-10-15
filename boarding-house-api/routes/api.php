@@ -52,6 +52,12 @@ Route::post('/register', function (Request $request){
         'role' => 'student',
         'status' => 'active',
     ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Student registered successfully.',
+        'data' => $user,
+    ], 201);
 });
 
 Route::get('/user', function (Request $request) {
