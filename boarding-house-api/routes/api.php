@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use App\Models\StudentProfile;
 
 
 
@@ -151,6 +152,74 @@ Route::middleware('auth:sanctum')->post('/logout', function (Request $request){
         'message' => 'Logout successful',
     ]);
 });
+
+
+
+
+
+Route::middleware('auth:sanctum')->group(function() {
+
+    Route::get('/student-profile', function(Request $request){
+        $user = $request->user();
+
+        if($user->role !== 'student') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only students can access this profile.',
+
+            ], 403);
+        }
+
+        $profile = StudentProfile::where('user_id', $user->id, $user->id)->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => $profile,
+        ]);
+    });
+
+
+
+
+     Route::put('/student-profile', function(Request $request){
+        $user = $request->user();
+
+        if($user->role !== 'student'){
+            return response()->json([
+                'success' => true,
+                'message' => 'Only students can update this profile.',
+
+            ], 403);
+        }
+
+        $validated = $request -> validate([
+            'student_number' => 'nullable|string|max:50',
+            'school_name' => 'nullable|string|max:255',
+            'course' => 'nullable|string|max:255',
+            'year_level' => 'nullable|string|max:50',
+            'contact_number' => 'nullable|string|max:30',
+            'birthdate' => 'nullable|date|before_or_equal:today',
+            'gender' => 'nullable|string|max:30',
+            'current_address' => 'nullable|string|max:500',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_number' => 'nullable|string|max:30',
+        ]);
+
+        $profile = StudentProfile::updateOrCreate(
+            ['user_id' => $user->id],
+            $validated
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Student profile save successfully.',
+            'data' => $profile,
+        ]);
+    });
+
+});
+
+
 
 
 
