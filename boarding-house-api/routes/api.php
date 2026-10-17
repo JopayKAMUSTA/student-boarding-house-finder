@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use App\Models\StudentProfile;
+use App\Models\Boardinghouse;
 
 
 
@@ -36,7 +38,7 @@ Route::post('/login',function (Request $request){
     if($validator->fails()) {
         return response() -> json([
             'success' => false,
-            'errors' => $validator-> errors(),
+            'errors' => $validator->errors(),
         ], 422);
     }
 
@@ -94,7 +96,7 @@ Route::post('/register', function (Request $request){
     if($validator -> fails()) {
         return response()->json([
             'success' => false,
-            'errors' => $validator->error(),
+            'errors' => $validator->errors(),
         ], 422);
     }
 
@@ -170,7 +172,7 @@ Route::middleware('auth:sanctum')->group(function() {
             ], 403);
         }
 
-        $profile = StudentProfile::where('user_id', $user->id, $user->id)->first();
+        $profile = StudentProfile::where('user_id', $user->id)->first();
 
         return response()->json([
             'success' => true,
@@ -219,6 +221,133 @@ Route::middleware('auth:sanctum')->group(function() {
 
 });
 
+
+
+
+
+
+
+Route::get('/boarding-houses', function (Request $request) {
+    $request->validate([
+        'city' => ['nullable', 'string' , 'max:100'],
+        'room_type' => ['nullable', 'string', 'max:100'],
+        'max_rent' => ['nullable', 'numeric', 'min:0'],
+    ]);
+
+    $boardingHouses = BoardingHouse::query()
+        ->where('status', 'approved')
+        ->where($request->filled('city'), function ($query) use ($request) {
+            $query->where('city','like', '%' . $request->city . '%');
+    }) 
+        
+        ->where ($request->filled('room_type'), function ($query) use ($request) {
+        $query->where('room_type', $request->room_type);
+    }) 
+
+        ->where($request->filled('max_rent'), function ($query) use ($request){
+            $query->where('monthly_rent', '<=', $request->max_rent);
+     })
+
+        ->orderBy('monthly_rent')
+        ->paginate(10);
+
+        return response()->json([
+            'success' => true,
+            'data' => $boardingHouses,
+        ]);
+});
+
+
+Route::get('/boarding-houses/{id}',function ($id){
+    $boardingHouses = BoardingHouse::query()
+    ->where('status', 'approved')
+    ->find($id);
+
+    if(!$boardingHouses) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Boarding house not found.',
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $boardingHouses,
+    ]);
+});
+
+
+
+
+
+
+
+Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
+    Route::get('/boarding-houses', function (Request $request) {
+        if($request->user()->role !== 'owner') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only owners can access this feature.',
+            ], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => BoardingHouse::where(
+                'owner_id',
+                $request->user()->id
+            )->latest()->paginate(10),
+        ]);
+    });
+
+
+
+    Route::post('/boarding-houses', function (Request $request){
+        if($request->user()->role !== 'owner') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only owners can create listings',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'name' => ['required','string','max:255'],
+            'description' => ['nullable', 'string'],
+            'city' => ['required', 'string', 'max:255'],
+            'barangay' => ['nullable','string','max:100'],
+            'address' => ['required','string','max:255'],
+            'monthly_rent' => ['required', 'numeric', 'min:0'],
+            'security_deposit' => ['nullable', 'numeric', 'min:0'],
+            'advance_payment' => ['nullable', 'numeric', 'min:0'],
+            'available_rooms' => ['required', 'integers', 'min:0'],
+            'total_rooms' => ['required', 'integer', 'min:1'],
+            'room_type' => ['nullable', 'string', 'max:100'],
+            'amenities' => ['nullable', 'array'],
+            'amenities.*' => ['string' , 'max:100'],
+        ]);
+
+        if($validated['available_rooms'] > $validated['total_rooms']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Available rooms cannot exceed total rooms.',
+            ], 422);
+        }
+
+        $boardingHouses = BoardingHouse::create([
+            ...$validated,
+            'owner_id' => $request->user()->id,
+            'security_deposit' => $validated['security_deposit'] ?? 0,
+            'advance_payment' => $validated['advance_payment'] ?? 0,
+            'status' => 'pending',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Boarding house submitted for admin approval.',
+            'data' => $boardingHouses,
+        ], 201);
+    });
+});
 
 
 
