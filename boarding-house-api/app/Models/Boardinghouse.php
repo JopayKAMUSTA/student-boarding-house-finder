@@ -5,9 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-
 class Boardinghouse extends Model
 {
+    protected $table = 'boarding_houses';
+
     protected $fillable = [
         'owner_id',
         'name',
@@ -22,10 +23,10 @@ class Boardinghouse extends Model
         'total_rooms',
         'room_type',
         'amenities',
-        'status'
+        'status',
     ];
-    
-    protected function casts(): array 
+
+    protected function casts(): array
     {
         return [
             'monthly_rent' => 'decimal:2',
@@ -35,9 +36,8 @@ class Boardinghouse extends Model
         ];
     }
 
-
-    public function owner(): BelongsTo 
+    public function owner(): BelongsTo
     {
-        return $thiss->belongsTo(User::class, 'owner_id');
+        return $this->belongsTo(User::class, 'owner_id');
     }
 }

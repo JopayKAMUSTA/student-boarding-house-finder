@@ -319,7 +319,7 @@ Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
             'monthly_rent' => ['required', 'numeric', 'min:0'],
             'security_deposit' => ['nullable', 'numeric', 'min:0'],
             'advance_payment' => ['nullable', 'numeric', 'min:0'],
-            'available_rooms' => ['required', 'integers', 'min:0'],
+            'available_rooms' => ['required', 'integer', 'min:0'],
             'total_rooms' => ['required', 'integer', 'min:1'],
             'room_type' => ['nullable', 'string', 'max:100'],
             'amenities' => ['nullable', 'array'],
