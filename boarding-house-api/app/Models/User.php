@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Models\OwnerProfile;
 
 class User extends Authenticatable
 {
@@ -45,4 +46,8 @@ class User extends Authenticatable
     {
         return $this->hasOne(StudentProfile::class);
     }
+    public function ownerProfile(): HasOne
+{
+    return $this->hasOne(OwnerProfile::class);
+}
 }

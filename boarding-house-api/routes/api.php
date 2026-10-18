@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use App\Models\StudentProfile;
 use App\Models\Boardinghouse;
+use App\Models\OwnerProfile;
 
 
 
@@ -123,6 +124,68 @@ Route::post('/register', function (Request $request){
     ], 201);
 });
 
+Route::post('/owner/register', function (Request $request) {
+    $validator = Validator::make($request->all(), [
+        'first_name' => 'required|string|max:100',
+        'middle_name' => 'nullable|string|max:100',
+        'last_name' => 'required|string|max:100',
+        'email' => 'required|email|max:255|unique:users,email',
+        'password' => 'required|string|min:8|confirmed',
+        'contact_number' => 'nullable|string|max:30',
+        'business_name' => 'nullable|string|max:255',
+        'business_address' => 'nullable|string|max:255',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+
+    $user = DB::transaction(function () use ($request) {
+        $user = User::create([
+            'name' => trim(
+                $request->first_name . ' ' .
+                ($request->middle_name
+                    ? $request->middle_name . ' '
+                    : '') .
+                $request->last_name
+            ),
+            'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
+            'last_name' => $request->last_name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => 'owner',
+            'status' => 'active',
+        ]);
+
+        $user->ownerProfile()->create([
+            'contact_number' => $request->contact_number,
+            'business_name' => $request->business_name,
+            'business_address' => $request->business_address,
+            'verification_status' => 'pending',
+        ]);
+
+        return $user;
+    });
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Owner registered successfully. You can log in and submit your boarding house for review.',
+        'data' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role,
+            'status' => $user->status,
+            'verification_status' => $user->ownerProfile->verification_status,
+        ],
+    ], 201);
+});
+
+
 
 Route::middleware('auth:sanctum')->get('/profile', function (Request $request) {
     $user =$request->user();
@@ -234,22 +297,21 @@ Route::get('/boarding-houses', function (Request $request) {
         'max_rent' => ['nullable', 'numeric', 'min:0'],
     ]);
 
-    $boardingHouses = BoardingHouse::query()
-        ->where('status', 'approved')
-        ->where($request->filled('city'), function ($query) use ($request) {
-            $query->where('city','like', '%' . $request->city . '%');
-    }) 
-        
-        ->where ($request->filled('room_type'), function ($query) use ($request) {
+
+$boardingHouses = BoardingHouse::query()
+    ->where('status', 'approved')
+    ->when($request->filled('city'), function ($query) use ($request) {
+        $query->where('city', 'like', '%' . $request->city . '%');
+    })
+    ->when($request->filled('room_type'), function ($query) use ($request) {
         $query->where('room_type', $request->room_type);
-    }) 
+    })
+    ->when($request->filled('max_rent'), function ($query) use ($request) {
+        $query->where('monthly_rent', '<=', $request->max_rent);
+    })
+    ->orderBy('monthly_rent')
+    ->paginate(10);
 
-        ->where($request->filled('max_rent'), function ($query) use ($request){
-            $query->where('monthly_rent', '<=', $request->max_rent);
-     })
-
-        ->orderBy('monthly_rent')
-        ->paginate(10);
 
         return response()->json([
             'success' => true,
