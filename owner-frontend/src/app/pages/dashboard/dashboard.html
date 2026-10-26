@@ -1,1 +1,56 @@
-<p>dashboard works!</p>
+<main class="dashboard">
+  <header class="dashboard-header">
+    <div>
+      <h1>Owner Dashboard</h1>
+      <p>
+        Welcome{{ ownerName ? ', ' + ownerName : '' }}.
+        <span *ngIf="ownerEmail">{{ ownerEmail }}</span>
+        <span *ngIf="ownerRole">({{ ownerRole }})</span>
+      </p>
+    </div>
+    <button type="button" (click)="logout()" [disabled]="isLoggingOut">
+      {{ isLoggingOut ? 'Signing out...' : 'Logout' }}
+    </button>
+  </header>
+
+  <nav aria-label="Owner navigation" class="dashboard-nav">
+    <a routerLink="/dashboard" routerLinkActive="active"
+       [routerLinkActiveOptions]="{ exact: true }">Dashboard</a>
+    <a routerLink="/boarding-houses" routerLinkActive="active">My Boarding Houses</a>
+    <a routerLink="/add-boarding-house" routerLinkActive="active">Add Boarding House</a>
+    <a routerLink="/owner-profile" routerLinkActive="active">Owner Profile</a>
+  </nav>
+
+  <section aria-labelledby="summary-heading">
+    <h2 id="summary-heading">Summary</h2>
+    <p *ngIf="isLoadingSummary" role="status">Loading your boarding-house summary...</p>
+    <p *ngIf="summaryError" role="alert">{{ summaryError }}</p>
+
+    <div class="summary-grid">
+      <article class="summary-card">
+        <h3>Total Boarding Houses</h3>
+        <p>{{ totalBoardingHouses === null ? 'Not available yet' : totalBoardingHouses }}</p>
+      </article>
+      <article class="summary-card">
+        <h3>Available Rooms</h3>
+        <p>{{ availableRooms === null ? 'Not available yet' : availableRooms }}</p>
+      </article>
+      <article class="summary-card">
+        <h3>Occupied Rooms</h3>
+        <p>{{ occupiedRooms === null ? 'Not available yet' : occupiedRooms }}</p>
+      </article>
+      <article class="summary-card">
+        <h3>Pending Tasks</h3>
+        <p>{{ pendingTasks === null ? 'Not available yet' : pendingTasks }}</p>
+      </article>
+    </div>
+
+    <p *ngIf="!isLoadingSummary && totalBoardingHouses !== null &&
+        (availableRooms === null || occupiedRooms === null)">
+      Room totals are shown only when the API returns every boarding house.
+    </p>
+    <p *ngIf="pendingTasks === null">
+      Pending tasks are unavailable because the system does not yet define a pending-activity metric.
+    </p>
+  </section>
+</main>

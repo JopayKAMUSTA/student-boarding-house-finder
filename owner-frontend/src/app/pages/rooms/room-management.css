@@ -1,0 +1,45 @@
+.room-management-page {
+  margin: 0 auto;
+  max-width: 960px;
+  padding: 1.5rem;
+}
+
+.room-page-header,
+.room-actions,
+.room-pagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.room-card {
+  border: 1px solid currentColor;
+  margin: 1rem 0;
+  padding: 1rem;
+}
+
+.room-card h2,
+.room-card p {
+  overflow-wrap: anywhere;
+}
+
+.room-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.room-photos img {
+  height: 140px;
+  max-width: 100%;
+  object-fit: cover;
+  width: 190px;
+}
+
+.room-actions,
+.room-pagination {
+  justify-content: flex-start;
+}

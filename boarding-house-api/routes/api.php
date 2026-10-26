@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\StudentProfile;
 use App\Models\Boardinghouse;
 use App\Models\OwnerProfile;
+use App\Http\Controllers\OwnerBoardingHouseRoomController;
 
 
 
@@ -345,6 +346,39 @@ Route::get('/boarding-houses/{id}',function ($id){
 
 
 Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
+    Route::get('/boarding-houses/{boardingHouse}/rooms', [
+        OwnerBoardingHouseRoomController::class,
+        'index',
+    ]);
+    Route::post('/boarding-houses/{boardingHouse}/rooms', [
+        OwnerBoardingHouseRoomController::class,
+        'store',
+    ]);
+    Route::get('/boarding-houses/{boardingHouse}/rooms/{room}', [
+        OwnerBoardingHouseRoomController::class,
+        'show',
+    ]);
+    Route::put('/boarding-houses/{boardingHouse}/rooms/{room}', [
+        OwnerBoardingHouseRoomController::class,
+        'update',
+    ]);
+    Route::delete('/boarding-houses/{boardingHouse}/rooms/{room}', [
+        OwnerBoardingHouseRoomController::class,
+        'destroy',
+    ]);
+    Route::post('/boarding-houses/{boardingHouse}/rooms/{room}/images', [
+        OwnerBoardingHouseRoomController::class,
+        'uploadImages',
+    ]);
+    Route::delete('/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}', [
+        OwnerBoardingHouseRoomController::class,
+        'destroyImage',
+    ]);
+    Route::get('/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}', [
+        OwnerBoardingHouseRoomController::class,
+        'showImage',
+    ])->name('owner.boarding-houses.rooms.images.show');
+
     Route::get('/boarding-houses', function (Request $request) {
         if($request->user()->role !== 'owner') {
             return response()->json([

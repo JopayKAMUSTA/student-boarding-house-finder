@@ -3,7 +3,15 @@
   <h1>Owner Login</h1>
   <p>Sign in to manage your boarding house listings.</p>
 
-  <form>
+  <p *ngIf="statusMessage" role="status">
+    {{ statusMessage }}
+  </p>
+
+  <form (ngSubmit)="login(loginForm)" #loginForm="ngForm">
+    <p *ngIf="errorMessage" style="color: red;">
+      {{ errorMessage }}
+    </p>
+
     <div>
       <label for="email">Email Address</label>
       <input
@@ -11,6 +19,7 @@
         id="email"
         name="email"
         placeholder="Enter your email"
+        ngModel
         required
       />
     </div>
@@ -22,11 +31,14 @@
         id="password"
         name="password"
         placeholder="Enter your password"
+        ngModel
         required
       />
     </div>
 
-    <button type="submit">Log In</button>
+    <button type="submit" [disabled]="isSubmitting">
+      {{ isSubmitting ? 'Logging In...' : 'Log In' }}
+    </button>
   </form>
 
   <p>

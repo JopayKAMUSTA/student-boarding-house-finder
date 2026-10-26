@@ -3,8 +3,14 @@
   <h1>Create Owner Account</h1>
   <p>Register your account to manage your boarding house listings.</p>
 
-  <form (ngSubmit)="createAccount()" #registerForm="ngForm">
+<form (ngSubmit)="createAccount(registerForm)" #registerForm="ngForm">
+  <p *ngIf="successMessage" style="color: green;">
+  {{ successMessage }}
+</p>
 
+<p *ngIf="errorMessage" style="color: red;">
+  {{ errorMessage }}
+</p>
     <div>
       <label for="first_name">First Name</label>
       <input
@@ -102,7 +108,9 @@
       />
     </div>
 
-    <button type="submit">Create Account</button>
+<button type="submit" [disabled]="isSubmitting">
+  {{ isSubmitting ? 'Creating Account...' : 'Create Account' }}
+</button>
   </form>
 
   <p>

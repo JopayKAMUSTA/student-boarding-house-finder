@@ -1,0 +1,35 @@
+.boarding-houses-page {
+  margin: 0 auto;
+  max-width: 960px;
+  padding: 1.5rem;
+}
+
+.page-header,
+.pagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.boarding-house {
+  border: 1px solid currentColor;
+  margin: 1rem 0;
+  padding: 1rem;
+}
+
+.boarding-house h2,
+.boarding-house p {
+  overflow-wrap: anywhere;
+}
+
+.pagination {
+  justify-content: flex-start;
+}
+
+.manage-rooms-button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.65rem 1rem;
+}

@@ -1,0 +1,79 @@
+<main class="room-management-page">
+  <a routerLink="/boarding-houses">Back to My Boarding Houses</a>
+
+  <header class="room-page-header">
+    <div>
+      <h1>Room Management</h1>
+      <h2 *ngIf="boardingHouse">{{ boardingHouse.name }}</h2>
+      <p *ngIf="boardingHouse">
+        {{ boardingHouse.address }}
+        <span *ngIf="boardingHouse.barangay">, {{ boardingHouse.barangay }}</span>,
+        {{ boardingHouse.city }}
+      </p>
+    </div>
+    <a *ngIf="boardingHouse"
+      [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', 'new']">
+      Add Room
+    </a>
+  </header>
+
+  <p *ngIf="isLoading" role="status">Loading rooms...</p>
+  <div *ngIf="errorMessage" role="alert">
+    <p>{{ errorMessage }}</p>
+    <button type="button" (click)="loadRooms()" [disabled]="isLoading">
+      Try Again
+    </button>
+  </div>
+  <p *ngIf="photoError" role="status">{{ photoError }}</p>
+
+
+<section *ngIf="!isLoading && !errorMessage && rooms.length === 0">
+  <h2>No rooms added yet</h2>
+  <p>
+    Add rooms for this boarding house. Existing property information will remain unchanged.
+  </p>
+</section>
+
+  <section *ngIf="!isLoading && !errorMessage && rooms.length > 0"
+    aria-label="Rooms in this boarding house">
+    <p>{{ total }} room{{ total === 1 ? '' : 's' }}</p>
+    <article *ngFor="let room of rooms" class="room-card">
+      <div class="room-details">
+        <h2>{{ room.room_number }}</h2>
+        <p>{{ room.room_type }}</p>
+        <p>
+          {{ room.monthly_rent | currency:'PHP':'symbol':'1.2-2' }}
+          {{ formatPricingBasis(room.pricing_basis) }}
+        </p>
+        <p>Maximum occupants: {{ room.max_occupants }}</p>
+        <p>Status: {{ formatAvailability(room.availability_status) | titlecase }}</p>
+        <p *ngIf="room.amenities?.length">Amenities: {{ room.amenities?.join(', ') }}</p>
+        <p *ngIf="room.description">{{ room.description }}</p>
+      </div>
+
+      <div *ngIf="room.images.length" class="room-photos">
+        <img *ngFor="let image of room.images" [hidden]="!imageUrls[image.id]"
+          [src]="imageUrls[image.id]"
+          [alt]="'Photo of room ' + room.room_number" loading="lazy" />
+      </div>
+
+      <div class="room-actions">
+        <a [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', room.id, 'edit']">
+          Edit Room
+        </a>
+        <button type="button" (click)="deleteRoom(room)"
+          [disabled]="deletingRoomId === room.id">
+          {{ deletingRoomId === room.id ? 'Deleting...' : 'Delete Room' }}
+        </button>
+      </div>
+    </article>
+
+    <nav *ngIf="lastPage > 1" aria-label="Room pages" class="room-pagination">
+      <button type="button" (click)="previousPage()"
+        [disabled]="isLoading || currentPage <= 1">Previous</button>
+      <span>Page {{ currentPage }} of {{ lastPage }}</span>
+      <button type="button" (click)="nextPage()"
+        [disabled]="isLoading || currentPage >= lastPage">Next</button>
+    </nav>
+  </section>
+</main>

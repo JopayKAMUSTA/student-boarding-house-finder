@@ -1,0 +1,66 @@
+.room-form-page {
+  margin: 0 auto;
+  max-width: 760px;
+  padding: 1.5rem;
+}
+
+.room-form-page form {
+  display: grid;
+  gap: 1rem;
+}
+
+.room-form-page form > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.room-form-page input:not([type='checkbox']),
+.room-form-page select,
+.room-form-page textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.5rem;
+  width: 100%;
+}
+
+.room-form-page textarea {
+  min-height: 5rem;
+}
+
+.room-form-page fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.other-amenity-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.amenity-option {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.photo-grid figure {
+  margin: 0;
+  max-width: 100%;
+  width: 190px;
+}
+
+.photo-grid img {
+  display: block;
+  height: 140px;
+  max-width: 100%;
+  object-fit: cover;
+  width: 190px;
+}

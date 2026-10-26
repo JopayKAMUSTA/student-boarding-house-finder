@@ -1,1 +1,85 @@
-<p>add-boarding-house works!</p>
+<main class="boarding-house-form-page">
+  <h1>Add Boarding House</h1>
+  <p>Submit your boarding house information for review.</p>
+  <p><a routerLink="/boarding-houses">View My Boarding Houses</a></p>
+
+  <p *ngIf="successMessage" role="status">{{ successMessage }}</p>
+  <p *ngIf="errorMessage" role="alert">{{ errorMessage }}</p>
+
+  <form #boardingHouseForm="ngForm" (ngSubmit)="submit(boardingHouseForm)">
+    <div>
+      <label for="name">Boarding House Name *</label>
+      <input id="name" name="name" type="text" maxlength="255"
+        [(ngModel)]="formModel.name" required />
+    </div>
+
+    <div>
+      <label for="description">Description</label>
+      <textarea id="description" name="description" [(ngModel)]="formModel.description"></textarea>
+    </div>
+
+    <div>
+      <label for="city">City *</label>
+      <input id="city" name="city" type="text" maxlength="255"
+        [(ngModel)]="formModel.city" required />
+    </div>
+
+    <div>
+      <label for="barangay">Barangay</label>
+      <input id="barangay" name="barangay" type="text" maxlength="100"
+        [(ngModel)]="formModel.barangay" />
+    </div>
+
+    <div>
+      <label for="address">Street Address *</label>
+      <input id="address" name="address" type="text" maxlength="255"
+        [(ngModel)]="formModel.address" required />
+    </div>
+
+    <div>
+      <label for="monthly_rent">Monthly Rent (PHP) *</label>
+      <input id="monthly_rent" name="monthly_rent" type="number" min="0"
+        step="0.01" [(ngModel)]="formModel.monthly_rent" required />
+    </div>
+
+    <div>
+      <label for="security_deposit">Security Deposit (PHP)</label>
+      <input id="security_deposit" name="security_deposit" type="number" min="0"
+        step="0.01" [(ngModel)]="formModel.security_deposit" />
+    </div>
+
+    <div>
+      <label for="advance_payment">Advance Payment (PHP)</label>
+      <input id="advance_payment" name="advance_payment" type="number" min="0"
+        step="0.01" [(ngModel)]="formModel.advance_payment" />
+    </div>
+
+    <div>
+      <label for="total_rooms">Total Rooms *</label>
+      <input id="total_rooms" name="total_rooms" type="number" min="1"
+        step="1" [(ngModel)]="formModel.total_rooms" required />
+    </div>
+
+    <div>
+      <label for="available_rooms">Available Rooms *</label>
+      <input id="available_rooms" name="available_rooms" type="number" min="0"
+        step="1" [(ngModel)]="formModel.available_rooms" required />
+    </div>
+
+    <div>
+      <label for="room_type">Room Type</label>
+      <input id="room_type" name="room_type" type="text" maxlength="100"
+        [(ngModel)]="formModel.room_type" />
+    </div>
+
+    <div>
+      <label for="amenities">Amenities</label>
+      <textarea id="amenities" name="amenities" [(ngModel)]="amenitiesInput"
+        placeholder="Separate amenities with commas or new lines"></textarea>
+    </div>
+
+    <button type="submit" [disabled]="isSubmitting">
+      {{ isSubmitting ? 'Submitting...' : 'Submit Boarding House' }}
+    </button>
+  </form>
+</main>

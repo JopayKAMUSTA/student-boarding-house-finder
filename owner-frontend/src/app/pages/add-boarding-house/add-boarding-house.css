@@ -1,0 +1,31 @@
+.boarding-house-form-page {
+  margin: 0 auto;
+  max-width: 760px;
+  padding: 1.5rem;
+}
+
+.boarding-house-form-page form {
+  display: grid;
+  gap: 1rem;
+}
+
+.boarding-house-form-page form > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.boarding-house-form-page input,
+.boarding-house-form-page textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.5rem;
+  width: 100%;
+}
+
+.boarding-house-form-page textarea {
+  min-height: 5rem;
+}
+
+.boarding-house-form-page button {
+  justify-self: start;
+}

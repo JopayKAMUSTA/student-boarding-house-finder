@@ -1,0 +1,48 @@
+.dashboard {
+  margin: 0 auto;
+  max-width: 960px;
+  padding: 1.5rem;
+}
+
+.dashboard-header,
+.dashboard-nav {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.dashboard-nav {
+  justify-content: flex-start;
+  margin: 1.5rem 0;
+}
+
+.dashboard-nav a {
+  padding: 0.5rem 0;
+}
+
+.dashboard-nav a.active {
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+}
+
+.summary-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+}
+
+.summary-card {
+  border: 1px solid currentColor;
+  padding: 1rem;
+}
+
+.summary-card h3,
+.summary-card p {
+  margin: 0;
+}
+
+.summary-card p {
+  margin-top: 0.75rem;
+}
