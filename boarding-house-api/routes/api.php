@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\StudentProfile;
 use App\Models\Boardinghouse;
 use App\Models\OwnerProfile;
@@ -32,21 +33,50 @@ Route::get('/users',function () {
 });
 
 Route::post('/login',function (Request $request){
+    $diagnosticsEnabled = (bool) config('app.auth_timing_diagnostics');
+    $startedAt = hrtime(true);
+    $timings = [];
+    $recordTiming = function (string $outcome) use (
+        $diagnosticsEnabled,
+        $startedAt,
+        &$timings
+    ): void {
+        if (! $diagnosticsEnabled) {
+            return;
+        }
+
+        Log::info('auth.login_stage_timing', [
+            'outcome' => $outcome,
+            'total_ms' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
+            'stages_ms' => $timings,
+        ]);
+    };
+
+    $stageStartedAt = hrtime(true);
     $validator = Validator::make($request->all(),[
         'email' => 'required|email',
         'password' => 'required|string',
     ]);
+    $timings['validation_ms'] = round((hrtime(true) - $stageStartedAt) / 1_000_000, 2);
 
     if($validator->fails()) {
+        $recordTiming('validation_failed');
         return response() -> json([
             'success' => false,
             'errors' => $validator->errors(),
         ], 422);
     }
 
+    $stageStartedAt = hrtime(true);
     $user = User::where('email',$request->email)->first();
+    $timings['user_lookup_ms'] = round((hrtime(true) - $stageStartedAt) / 1_000_000, 2);
 
-    if(!$user || !Hash::check($request->password, $user->password)) {
+    $stageStartedAt = hrtime(true);
+    $credentialsValid = $user && Hash::check($request->password, $user->password);
+    $timings['credential_check_ms'] = round((hrtime(true) - $stageStartedAt) / 1_000_000, 2);
+
+    if(!$credentialsValid) {
+        $recordTiming('invalid_credentials');
         return response() -> json([
             'success' => false,
             'message' => 'Invalid email or password.',
@@ -55,6 +85,7 @@ Route::post('/login',function (Request $request){
     }
 
     if($user->status !== 'active') {
+        $recordTiming('inactive_account');
         return response()->json([
             'success' => false,
             'message' => 'Your account is not active.',
@@ -62,8 +93,10 @@ Route::post('/login',function (Request $request){
         ], 403);
     }
 
-
+    $stageStartedAt = hrtime(true);
     $token = $user->createToken('student-boarding-house-app')->plainTextToken;
+    $timings['token_creation_ms'] = round((hrtime(true) - $stageStartedAt) / 1_000_000, 2);
+    $recordTiming('success');
 
     return response()->json([
         'success' => true,
@@ -211,7 +244,16 @@ Route::middleware('auth:sanctum')->get('/profile', function (Request $request) {
 
 
 Route::middleware('auth:sanctum')->post('/logout', function (Request $request){
+    $startedAt = hrtime(true);
+    $stageStartedAt = hrtime(true);
     $request->user()->currentAccessToken()->delete();
+
+    if (config('app.auth_timing_diagnostics')) {
+        Log::info('auth.logout_stage_timing', [
+            'token_delete_ms' => round((hrtime(true) - $stageStartedAt) / 1_000_000, 2),
+            'route_ms' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
+        ]);
+    }
 
     return response()->json([
         'success' => true,

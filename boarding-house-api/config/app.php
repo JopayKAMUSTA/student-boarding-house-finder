@@ -41,6 +41,8 @@ return [
 
     'debug' => (bool) env('APP_DEBUG', false),
 
+    'auth_timing_diagnostics' => (bool) env('AUTH_TIMING_DIAGNOSTICS', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL

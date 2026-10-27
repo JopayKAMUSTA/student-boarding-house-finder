@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
@@ -28,6 +28,7 @@ export class RoomForm implements OnInit, OnDestroy {
   private readonly ownerAuth = inject(OwnerAuth);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private cdr = inject(ChangeDetectorRef);
 
   readonly roomTypes: RoomType[] = [
     'Single Room',
@@ -237,31 +238,42 @@ export class RoomForm implements OnInit, OnDestroy {
     });
   }
 
-  private loadRoom(): void {
-    const token = this.ownerAuth.getToken();
-    if (!token || this.roomId === null) {
-      void this.router.navigate(['/login'], {
-        queryParams: { notice: 'session-expired' }
-      });
-      return;
-    }
+private loadRoom(): void {
+  const token = this.ownerAuth.getToken();
 
-    this.isLoading = true;
-    this.ownerAuth.getOwnerRoom(token, this.boardingHouseId, this.roomId).subscribe({
-      next: (response) => {
-        this.isLoading = false;
-        if (!response.success || !response.data) {
-          this.errorMessage = response.message || 'The room could not be loaded.';
-          return;
-        }
-        this.setRoom(response.data);
-      },
-      error: (error: HttpErrorResponse) => {
-        this.isLoading = false;
-        this.handleApiError(error);
-      }
+  if (!token || this.roomId === null) {
+    void this.router.navigate(['/login'], {
+      queryParams: { notice: 'session-expired' }
     });
+    return;
   }
+
+  this.isLoading = true;
+  this.errorMessage = '';
+
+  this.ownerAuth.getOwnerRoom(
+    token,
+    this.boardingHouseId,
+    this.roomId
+  ).subscribe({
+    next: (response) => {
+      if (!response.success || !response.data) {
+        this.errorMessage =
+          response.message || 'The room could not be loaded.';
+      } else {
+        this.setRoom(response.data);
+      }
+
+      this.isLoading = false;
+      this.cdr.detectChanges();
+    },
+    error: (error: HttpErrorResponse) => {
+      this.isLoading = false;
+      this.handleApiError(error);
+      this.cdr.detectChanges();
+    }
+  });
+}
 
   private setRoom(room: ManagedRoomInfo): void {
     this.formModel = {
