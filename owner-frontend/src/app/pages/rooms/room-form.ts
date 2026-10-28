@@ -172,12 +172,19 @@ export class RoomForm implements OnInit, OnDestroy {
     ).subscribe({
       next: (response) => {
         this.deletingImageId = null;
+
         if (!response.success) {
           this.errorMessage = response.message || 'The photo could not be removed.';
+          this.cdr.detectChanges();
           return;
         }
-        this.savedImages = this.savedImages.filter((saved) => saved.id !== image.id);
+
+        this.savedImages = this.savedImages.filter(
+          (saved) => saved.id !== image.id
+        );
+
         this.revokeSavedImageUrl(image.id);
+        this.cdr.detectChanges();
       },
       error: (error: HttpErrorResponse) => {
         this.deletingImageId = null;
@@ -351,6 +358,7 @@ private loadRoom(): void {
       ).subscribe({
         next: (blob) => {
           this.savedImageUrls[image.id] = URL.createObjectURL(blob);
+          this.cdr.detectChanges();
         },
         error: (error: HttpErrorResponse) => this.handleApiError(error)
       });

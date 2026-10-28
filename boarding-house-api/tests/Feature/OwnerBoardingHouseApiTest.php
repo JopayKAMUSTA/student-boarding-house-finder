@@ -142,8 +142,13 @@ class OwnerBoardingHouseApiTest extends TestCase
         Storage::disk('public')->assertExists($image->image_path);
         Storage::disk('public')->assertExists($remainingImage->image_path);
         $this->assertNotEmpty($upload->json('data.images.0.url'));
-        $this->get("{$baseUrl}/{$roomId}/images/{$imageId}")
+        $imageResponse = $this->get("{$baseUrl}/{$roomId}/images/{$imageId}")
             ->assertOk();
+        $this->assertSame(
+            Storage::disk('public')->get($image->image_path),
+            $imageResponse->streamedContent()
+        );
+        $this->assertSame('image/png', $imageResponse->headers->get('Content-Type'));
 
         $this->deleteJson("{$baseUrl}/{$roomId}/images/{$imageId}")
             ->assertOk();
