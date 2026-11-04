@@ -1,0 +1,283 @@
+
+.users-page {
+  padding: 30px;
+  color: #202938;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.page-header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.page-header p {
+  color: #7b8493;
+  margin: 0;
+  font-size: 14px;
+}
+
+.total-users {
+  background: #ffffff;
+  border: 1px solid #e8ebf0;
+  border-radius: 10px;
+  padding: 13px 22px;
+  min-width: 130px;
+}
+
+.total-users span {
+  display: block;
+  font-size: 12px;
+  color: #7b8493;
+}
+
+.total-users strong {
+  display: block;
+  font-size: 24px;
+  margin-top: 5px;
+}
+
+.users-card {
+  background: #ffffff;
+  border: 1px solid #e8ebf0;
+  border-radius: 12px;
+  padding: 22px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 250px;
+}
+
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid #dfe3e9;
+  border-radius: 7px;
+  outline: none;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.search-box input:focus,
+.filters select:focus {
+  border-color: #2563eb;
+}
+
+.search-box button {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  padding: 0 20px;
+  cursor: pointer;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filters select {
+  padding: 10px 12px;
+  border: 1px solid #dfe3e9;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #374151;
+  outline: none;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.clear-button {
+  padding: 10px 15px;
+  border: 1px solid #dfe3e9;
+  background: #ffffff;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+thead {
+  background: #f8f9fb;
+}
+
+th {
+  padding: 15px 12px;
+  color: #737e8d;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+td {
+  padding: 16px 12px;
+  border-bottom: 1px solid #edf0f3;
+  font-size: 13px;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.user-avatar {
+  width: 37px;
+  height: 37px;
+  border-radius: 50%;
+  background: #e8efff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.user-name strong {
+  display: block;
+  color: #202938;
+  font-size: 13px;
+}
+
+.user-name small {
+  display: block;
+  color: #929baa;
+  margin-top: 4px;
+}
+
+.role-badge,
+.status-badge {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.role-badge.student {
+  background: #e8efff;
+  color: #2563eb;
+}
+
+.role-badge.owner {
+  background: #fff1df;
+  color: #c47a13;
+}
+
+.role-badge.admin {
+  background: #eee8ff;
+  color: #7650c9;
+}
+
+.status-badge.active {
+  background: #e5f7ed;
+  color: #18864b;
+}
+
+.status-badge.pending {
+  background: #fff5df;
+  color: #bd8216;
+}
+
+.status-badge.suspended {
+  background: #feecec;
+  color: #d14343;
+}
+
+.empty-state,
+.message {
+  text-align: center;
+  padding: 35px;
+  color: #7b8493;
+}
+
+.error-message {
+  padding: 20px;
+  color: #c62828;
+  background: #fff0f0;
+  border-radius: 7px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 20px;
+  color: #7b8493;
+  font-size: 13px;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.pagination-buttons button {
+  padding: 9px 15px;
+  border: 1px solid #dfe3e9;
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pagination-buttons button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .users-page {
+    padding: 18px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+    gap: 15px;
+    flex-direction: column;
+  }
+
+  .toolbar {
+    flex-direction: column;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

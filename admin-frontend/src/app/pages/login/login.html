@@ -1,0 +1,123 @@
+
+<div class="login-page">
+  <div class="login-brand">
+    <div class="brand-content">
+      <div class="brand-logo">T</div>
+      <h1>TAGSTAY</h1>
+      <p>BOARDING HOUSE FINDER</p>
+
+      <div class="brand-message">
+        <h2>Manage your platform.<br>Build better stays.</h2>
+        <p>
+          Welcome to the TagStay administration portal.
+          Manage users, boarding houses, and platform activities
+          in one place.
+        </p>
+      </div>
+
+      <div class="brand-footer">
+        © 2026 TagStay. All rights reserved.
+      </div>
+    </div>
+  </div>
+
+  <div class="login-form-section">
+    <div class="login-card">
+
+      <div class="mobile-logo">
+        <div class="brand-logo">T</div>
+        <h2>TAGSTAY</h2>
+      </div>
+
+      <span class="welcome-label">ADMINISTRATOR ACCESS</span>
+
+      <h2>Welcome back</h2>
+
+      <p class="subtitle">
+        Please enter your account details to continue.
+      </p>
+
+      <form (ngSubmit)="login()" #loginForm="ngForm">
+
+        <!-- Email Address -->
+        <div class="form-group">
+          <label for="email">Email Address</label>
+
+          <input
+            id="email"
+            type="email"
+            name="email"
+            [(ngModel)]="email"
+            placeholder="Enter your admin email"
+            autocomplete="username"
+            required
+          />
+        </div>
+
+        <!-- Password -->
+        <div class="form-group">
+          <label for="password">Password</label>
+
+          <div class="password-wrapper">
+            <input
+              id="password"
+              [type]="showPassword ? 'text' : 'password'"
+              name="password"
+              [(ngModel)]="password"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+            />
+
+            <button
+              type="button"
+              class="show-password"
+              (click)="showPassword = !showPassword"
+            >
+              {{ showPassword ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Remember Me -->
+        <div class="form-options">
+          <label class="remember">
+            <input
+              type="checkbox"
+              name="rememberMe"
+              [(ngModel)]="rememberMe"
+            />
+            Remember me
+          </label>
+
+          <span class="secure-label">
+            Secure Admin Login
+          </span>
+        </div>
+
+        <!-- Error Message -->
+        @if (errorMessage) {
+          <div class="error-message">
+            {{ errorMessage }}
+          </div>
+        }
+
+        <!-- Login Button -->
+        <button
+          type="submit"
+          class="login-button"
+          [disabled]="isLoading || loginForm.invalid"
+        >
+          {{ isLoading ? 'Signing in...' : 'Sign In to Dashboard' }}
+        </button>
+
+      </form>
+
+      <div class="login-footer">
+        <p>Authorized personnel only.</p>
+        <p>TagStay Administration System</p>
+      </div>
+
+    </div>
+  </div>
+</div>
