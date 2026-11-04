@@ -1,35 +1,216 @@
-.boarding-houses-page {
-  margin: 0 auto;
-  max-width: 960px;
-  padding: 1.5rem;
+:host {
+  --blue-900: #0b2a5b;
+  --blue-700: #1347a8;
+  --blue-600: #1d5bd6;
+  --blue-500: #2f74f0;
+  --blue-100: #e3edff;
+  --blue-50: #f3f7ff;
+  --ink: #14213d;
+  --muted: #5d6b85;
+  --line: #dde5f3;
+  --surface: #ffffff;
+  --bg: #f5f8fd;
+  --danger: #b42318;
+  --danger-bg: #fef0ee;
+
+  display: block;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
 }
 
-.page-header,
-.pagination {
-  align-items: center;
+* { box-sizing: border-box; }
+
+svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.boarding-houses-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px clamp(20px, 4vw, 48px) 56px;
+}
+
+
+/* ---------- Header ---------- */
+.page-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.page-header h1 { margin: 0; font-size: 1.75rem; line-height: 1.2; letter-spacing: -0.01em; }
+.page-header p { margin: 6px 0 0; color: var(--muted); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-primary { background: var(--blue-600); color: #fff; }
+.btn-primary:hover { background: var(--blue-700); }
+.btn-outline { background: var(--surface); color: var(--blue-700); border-color: var(--line); }
+.btn-outline:hover:not(:disabled) { background: var(--blue-50); border-color: var(--blue-500); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+a:focus-visible, button:focus-visible {
+  outline: 3px solid var(--blue-500);
+  outline-offset: 2px;
+}
+
+/* ---------- Notices ---------- */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 20px;
+  border-radius: 12px;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-100);
+  color: var(--blue-700);
+}
+.notice-error {
+  justify-content: space-between;
+  background: var(--danger-bg);
+  border-color: #f6c9c3;
+  color: var(--danger);
+}
+.notice-error p { margin: 0; }
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--blue-100);
+  border-top-color: var(--blue-600);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* ---------- Empty state ---------- */
+.empty {
+  text-align: center;
+  padding: 56px 24px;
+  background: var(--surface);
+  border: 1px dashed #b9cdf5;
+  border-radius: 16px;
+}
+.empty-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--blue-100);
+  color: var(--blue-600);
+  margin-bottom: 16px;
+}
+.empty-icon svg { width: 26px; height: 26px; }
+.empty h2 { margin: 0 0 6px; font-size: 1.15rem; }
+.empty p { margin: 0 0 20px; color: var(--muted); }
+
+/* ---------- List ---------- */
+.count { margin: 0 0 16px; color: var(--muted); font-weight: 500; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px;
 }
 
 .boarding-house {
-  border: 1px solid currentColor;
-  margin: 1rem 0;
-  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
 }
+.boarding-house p { margin: 0; }
 
-.boarding-house h2,
-.boarding-house p {
-  overflow-wrap: anywhere;
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.card-top h2 { margin: 0; font-size: 1.2rem; line-height: 1.3; color: var(--blue-900); }
+
+.badge {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: var(--blue-100);
+  color: var(--blue-700);
 }
+.badge[data-status="approved"],
+.badge[data-status="active"],
+.badge[data-status="published"] { background: #e3f6ec; color: #136c3a; }
+.badge[data-status="pending"] { background: #fff4de; color: #8a5a00; }
+.badge[data-status="rejected"],
+.badge[data-status="inactive"] { background: var(--danger-bg); color: var(--danger); }
 
+.location { color: var(--muted); font-size: 0.92rem; margin-top: -8px; }
+
+.stats {
+  display: flex;
+  gap: 32px;
+  margin: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.stats dt { font-size: 0.82rem; color: var(--muted); }
+.stats dd { margin: 2px 0 0; font-size: 1.4rem; font-weight: 700; color: var(--blue-900); line-height: 1.3; }
+.stats small { margin-left: 6px; font-size: 0.82rem; font-weight: 500; color: var(--muted); }
+
+.meta { color: var(--muted); font-size: 0.9rem; text-transform: capitalize; }
+
+.amenities { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.amenities li {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--blue-50);
+  color: var(--blue-700);
+  font-size: 0.82rem;
+}
+.amenities .more { background: transparent; color: var(--muted); }
+
+.manage-rooms-button { margin-top: auto; }
+
+/* ---------- Pagination ---------- */
 .pagination {
-  justify-content: flex-start;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 32px;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
-.manage-rooms-button {
-  display: inline-block;
-  margin-top: 0.5rem;
-  padding: 0.65rem 1rem;
+@media (max-width: 640px) {
+  .page-header { flex-direction: column; }
+  .grid { grid-template-columns: 1fr; }
 }

@@ -1,54 +1,88 @@
-<main class="boarding-houses-page">
+<div class="boarding-houses-page">
+  
   <header class="page-header">
     <div>
       <h1>My Boarding Houses</h1>
       <p>Boarding houses submitted from your owner account.</p>
     </div>
-    <a routerLink="/add-boarding-house">Add Boarding House</a>
+    <a routerLink="/add-boarding-house" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Add Boarding House
+    </a>
   </header>
 
-  <p *ngIf="isLoading" role="status">Loading your boarding houses...</p>
-  <div *ngIf="errorMessage" role="alert">
+  <p *ngIf="isLoading" role="status" class="notice">
+    <span class="spinner" aria-hidden="true"></span>
+    Loading your boarding houses...
+  </p>
+
+  <div *ngIf="errorMessage" role="alert" class="notice notice-error">
     <p>{{ errorMessage }}</p>
-    <button type="button" (click)="loadBoardingHouses()" [disabled]="isLoading">
+    <button type="button" class="btn btn-outline" (click)="loadBoardingHouses()" [disabled]="isLoading">
       Try Again
     </button>
   </div>
 
-  <p *ngIf="!isLoading && !errorMessage && total === 0">
-    You have not added any boarding houses yet.
-    <a routerLink="/add-boarding-house">Add your first boarding house</a>
-  </p>
+  <div *ngIf="!isLoading && !errorMessage && total === 0" class="empty">
+    <span class="empty-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/></svg>
+    </span>
+    <h2>You have not added any boarding houses yet.</h2>
+    <p>Add your first boarding house to start managing rooms.</p>
+    <a routerLink="/add-boarding-house" class="btn btn-primary">Add your first boarding house</a>
+  </div>
 
   <section *ngIf="!isLoading && !errorMessage && boardingHouses.length > 0"
     aria-label="Your boarding houses">
-    <p>{{ total }} boarding house{{ total === 1 ? '' : 's' }}</p>
-    <article *ngFor="let house of boardingHouses" class="boarding-house">
-      <h2>{{ house.name || 'Boarding House' }}</h2>
-      <p *ngIf="house.address">{{ house.address }}</p>
-      <p>{{ house.barangay ? house.barangay + ', ' : '' }}{{ house.city }}</p>
-      <p *ngIf="house.monthly_rent !== undefined">
-        Starting monthly rent:
-        {{ house.monthly_rent | currency:'PHP':'symbol':'1.2-2' }}
-      </p>
-      <p>Rooms: {{ house.available_rooms }} available of {{ house.total_rooms }}</p>
-      <p *ngIf="house.room_type">Room type: {{ house.room_type }}</p>
-      <p *ngIf="house.amenities?.length">Amenities: {{ house.amenities?.join(', ') }}</p>
-      <p *ngIf="house.status">Status: {{ house.status }}</p>
-      <p *ngIf="house.description">{{ house.description }}</p>
-      <a class="manage-rooms-button"
-        *ngIf="house.id"
-        [routerLink]="['/owner/boarding-houses', house.id, 'rooms']">
-        Manage Rooms
-      </a>
-    </article>
+    <p class="count">{{ total }} boarding house{{ total === 1 ? '' : 's' }}</p>
+
+    <div class="grid">
+      <article *ngFor="let house of boardingHouses" class="boarding-house">
+        <div class="card-top">
+          <h2>{{ house.name || 'Boarding House' }}</h2>
+          <span *ngIf="house.status" class="badge" [attr.data-status]="house.status | lowercase">
+            {{ house.status }}
+          </span>
+        </div>
+
+        <p class="location">
+          {{ house.address ? house.address + ', ' : '' }}{{ house.barangay ? house.barangay + ', ' : '' }}{{ house.city }}
+        </p>
+
+        <dl class="stats">
+          <div *ngIf="house.monthly_rent !== undefined">
+            <dt>Starting rent</dt>
+            <dd>{{ house.monthly_rent | currency:'PHP':'symbol':'1.0-0' }}<small>/month</small></dd>
+          </div>
+          <div>
+            <dt>Rooms available</dt>
+            <dd>{{ house.available_rooms }}<small>of {{ house.total_rooms }}</small></dd>
+          </div>
+        </dl>
+
+        <p class="meta" *ngIf="house.room_type">{{ house.room_type }}</p>
+
+        <ul class="amenities" *ngIf="house.amenities?.length" aria-label="Amenities">
+          <li *ngFor="let amenity of house.amenities?.slice(0, 3)">{{ amenity }}</li>
+          <li class="more" *ngIf="house.amenities && house.amenities.length > 3">
+            +{{ house.amenities.length - 3 }} more
+          </li>
+        </ul>
+
+        <a class="manage-rooms-button btn btn-outline"
+          *ngIf="house.id"
+          [routerLink]="['/owner/boarding-houses', house.id, 'rooms']">
+          Manage Rooms
+        </a>
+      </article>
+    </div>
 
     <nav *ngIf="lastPage > 1" aria-label="Boarding-house pages" class="pagination">
-      <button type="button" (click)="previousPage()"
+      <button type="button" class="btn btn-outline" (click)="previousPage()"
         [disabled]="isLoading || currentPage <= 1">Previous</button>
       <span>Page {{ currentPage }} of {{ lastPage }}</span>
-      <button type="button" (click)="nextPage()"
+      <button type="button" class="btn btn-outline" (click)="nextPage()"
         [disabled]="isLoading || currentPage >= lastPage">Next</button>
     </nav>
   </section>
-</main>
+</div>

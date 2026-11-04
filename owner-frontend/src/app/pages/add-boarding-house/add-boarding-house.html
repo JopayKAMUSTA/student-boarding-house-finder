@@ -1,85 +1,129 @@
-<main class="boarding-house-form-page">
-  <h1>Add Boarding House</h1>
-  <p>Submit your boarding house information for review.</p>
-  <p><a routerLink="/boarding-houses">View My Boarding Houses</a></p>
+<div class="boarding-house-form-page">
+  <a class="back-link" routerLink="/boarding-houses">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+    View My Boarding Houses
+  </a>
 
-  <p *ngIf="successMessage" role="status">{{ successMessage }}</p>
-  <p *ngIf="errorMessage" role="alert">{{ errorMessage }}</p>
+  <header class="page-header">
+    <h1>Add Boarding House</h1>
+    <p>Submit your boarding house information for review. Fields marked with * are required.</p>
+  </header>
+
+  <p *ngIf="successMessage" role="status" class="notice notice-success">{{ successMessage }}</p>
+  <p *ngIf="errorMessage" role="alert" class="notice notice-error">{{ errorMessage }}</p>
 
   <form #boardingHouseForm="ngForm" (ngSubmit)="submit(boardingHouseForm)">
-    <div>
-      <label for="name">Boarding House Name *</label>
-      <input id="name" name="name" type="text" maxlength="255"
-        [(ngModel)]="formModel.name" required />
-    </div>
 
-    <div>
-      <label for="description">Description</label>
-      <textarea id="description" name="description" [(ngModel)]="formModel.description"></textarea>
-    </div>
+    <section class="panel" aria-labelledby="basic-heading">
+      <h2 id="basic-heading">Basic information</h2>
+      <div class="fields">
+        <div class="field full">
+          <label for="name">Boarding House Name *</label>
+          <input id="name" name="name" type="text" maxlength="255"
+            [(ngModel)]="formModel.name" required />
+        </div>
 
-    <div>
-      <label for="city">City *</label>
-      <input id="city" name="city" type="text" maxlength="255"
-        [(ngModel)]="formModel.city" required />
-    </div>
+        <div class="field full">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4"
+            [(ngModel)]="formModel.description"></textarea>
+        </div>
+      </div>
+    </section>
 
-    <div>
-      <label for="barangay">Barangay</label>
-      <input id="barangay" name="barangay" type="text" maxlength="100"
-        [(ngModel)]="formModel.barangay" />
-    </div>
+    <section class="panel" aria-labelledby="location-heading">
+      <h2 id="location-heading">Location</h2>
+      <div class="fields">
+        <div class="field">
+          <label for="city">City *</label>
+          <input id="city" name="city" type="text" maxlength="255"
+            [(ngModel)]="formModel.city" required />
+        </div>
 
-    <div>
-      <label for="address">Street Address *</label>
-      <input id="address" name="address" type="text" maxlength="255"
-        [(ngModel)]="formModel.address" required />
-    </div>
+        <div class="field">
+          <label for="barangay">Barangay</label>
+          <input id="barangay" name="barangay" type="text" maxlength="100"
+            [(ngModel)]="formModel.barangay" />
+        </div>
 
-    <div>
-      <label for="monthly_rent">Monthly Rent (PHP) *</label>
-      <input id="monthly_rent" name="monthly_rent" type="number" min="0"
-        step="0.01" [(ngModel)]="formModel.monthly_rent" required />
-    </div>
+        <div class="field full">
+          <label for="address">Street Address *</label>
+          <input id="address" name="address" type="text" maxlength="255"
+            [(ngModel)]="formModel.address" required />
+        </div>
+      </div>
+    </section>
 
-    <div>
-      <label for="security_deposit">Security Deposit (PHP)</label>
-      <input id="security_deposit" name="security_deposit" type="number" min="0"
-        step="0.01" [(ngModel)]="formModel.security_deposit" />
-    </div>
+    <section class="panel" aria-labelledby="pricing-heading">
+      <h2 id="pricing-heading">Pricing</h2>
+      <div class="fields three">
+        <div class="field">
+          <label for="monthly_rent">Monthly Rent (PHP) *</label>
+          <div class="input-prefix">
+            <span aria-hidden="true">₱</span>
+            <input id="monthly_rent" name="monthly_rent" type="number" min="0"
+              step="0.01" [(ngModel)]="formModel.monthly_rent" required />
+          </div>
+        </div>
 
-    <div>
-      <label for="advance_payment">Advance Payment (PHP)</label>
-      <input id="advance_payment" name="advance_payment" type="number" min="0"
-        step="0.01" [(ngModel)]="formModel.advance_payment" />
-    </div>
+        <div class="field">
+          <label for="security_deposit">Security Deposit (PHP)</label>
+          <div class="input-prefix">
+            <span aria-hidden="true">₱</span>
+            <input id="security_deposit" name="security_deposit" type="number" min="0"
+              step="0.01" [(ngModel)]="formModel.security_deposit" />
+          </div>
+        </div>
 
-    <div>
-      <label for="total_rooms">Total Rooms *</label>
-      <input id="total_rooms" name="total_rooms" type="number" min="1"
-        step="1" [(ngModel)]="formModel.total_rooms" required />
-    </div>
+        <div class="field">
+          <label for="advance_payment">Advance Payment (PHP)</label>
+          <div class="input-prefix">
+            <span aria-hidden="true">₱</span>
+            <input id="advance_payment" name="advance_payment" type="number" min="0"
+              step="0.01" [(ngModel)]="formModel.advance_payment" />
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <div>
-      <label for="available_rooms">Available Rooms *</label>
-      <input id="available_rooms" name="available_rooms" type="number" min="0"
-        step="1" [(ngModel)]="formModel.available_rooms" required />
-    </div>
+    <section class="panel" aria-labelledby="rooms-heading">
+      <h2 id="rooms-heading">Rooms</h2>
+      <div class="fields three">
+        <div class="field">
+          <label for="total_rooms">Total Rooms *</label>
+          <input id="total_rooms" name="total_rooms" type="number" min="1"
+            step="1" [(ngModel)]="formModel.total_rooms" required />
+        </div>
 
-    <div>
-      <label for="room_type">Room Type</label>
-      <input id="room_type" name="room_type" type="text" maxlength="100"
-        [(ngModel)]="formModel.room_type" />
-    </div>
+        <div class="field">
+          <label for="available_rooms">Available Rooms *</label>
+          <input id="available_rooms" name="available_rooms" type="number" min="0"
+            step="1" [(ngModel)]="formModel.available_rooms" required />
+        </div>
 
-    <div>
-      <label for="amenities">Amenities</label>
-      <textarea id="amenities" name="amenities" [(ngModel)]="amenitiesInput"
-        placeholder="Separate amenities with commas or new lines"></textarea>
-    </div>
+        <div class="field">
+          <label for="room_type">Room Type</label>
+          <input id="room_type" name="room_type" type="text" maxlength="100"
+            [(ngModel)]="formModel.room_type" />
+        </div>
+      </div>
+    </section>
 
-    <button type="submit" [disabled]="isSubmitting">
-      {{ isSubmitting ? 'Submitting...' : 'Submit Boarding House' }}
-    </button>
+    <section class="panel" aria-labelledby="amenities-heading">
+      <h2 id="amenities-heading">Amenities</h2>
+      <div class="field">
+        <label for="amenities">Amenities</label>
+        <textarea id="amenities" name="amenities" rows="3" [(ngModel)]="amenitiesInput"
+          placeholder="Separate amenities with commas or new lines"></textarea>
+        <p class="hint">Example: Wi-Fi, Air conditioning, Laundry area</p>
+      </div>
+    </section>
+
+    <div class="actions">
+      <a class="btn btn-outline" routerLink="/boarding-houses">Cancel</a>
+      <button type="submit" class="btn btn-primary" [disabled]="isSubmitting">
+        {{ isSubmitting ? 'Submitting...' : 'Submit Boarding House' }}
+      </button>
+    </div>
   </form>
-</main>
+</div>
