@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { finalize } from 'rxjs';
 import { ManagedOwner, UserService } from '../../services/user';
 
@@ -11,6 +11,7 @@ import { ManagedOwner, UserService } from '../../services/user';
   styleUrl: './owner-verification.css'
 })
 export class OwnerVerification implements OnInit {
+  private cdr = inject(ChangeDetectorRef);
   owners: ManagedOwner[] = [];
   currentPage = 1;
   lastPage = 1;
@@ -32,9 +33,10 @@ export class OwnerVerification implements OnInit {
     this.errorMessage = '';
 
     this.userService.getOwners(page)
-      .pipe(finalize(() => {
-        this.loading = false;
-      }))
+.pipe(finalize(() => {
+  this.loading = false;
+  this.cdr.detectChanges();
+}))
       .subscribe({
         next: (response) => {
           if (
@@ -71,9 +73,10 @@ export class OwnerVerification implements OnInit {
     this.successMessage = '';
 
     this.userService.updateOwnerVerification(owner.id, verificationStatus)
-      .pipe(finalize(() => {
-        this.updatingOwnerId = null;
-      }))
+.pipe(finalize(() => {
+  this.updatingOwnerId = null;
+  this.cdr.detectChanges();
+}))
       .subscribe({
         next: (response) => {
           if (!response.success || !response.data.owner_profile) {

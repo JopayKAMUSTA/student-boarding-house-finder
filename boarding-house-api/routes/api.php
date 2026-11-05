@@ -11,8 +11,10 @@ use App\Models\StudentProfile;
 use App\Models\Boardinghouse;
 use App\Models\OwnerProfile;
 use App\Http\Controllers\AdminAuthController;
+use App\Http\Controllers\AdminBoardinghouseController;
 use App\Http\Controllers\AdminOwnerController;
 use App\Http\Controllers\OwnerBoardingHouseRoomController;
+use App\Http\Controllers\OwnerTenantController;
 
 
 
@@ -125,6 +127,19 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         AdminOwnerController::class,
         'updateVerification',
     ]);
+    Route::get('/boarding-houses', [AdminBoardinghouseController::class, 'index']);
+    Route::get('/boarding-houses/{boardingHouse}', [
+        AdminBoardinghouseController::class,
+        'show',
+    ]);
+    Route::patch('/boarding-houses/{boardingHouse}/status', [
+        AdminBoardinghouseController::class,
+        'updateStatus',
+    ]);
+    Route::get(
+        '/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}',
+        [AdminBoardinghouseController::class, 'showImage']
+    )->name('admin.boarding-houses.rooms.images.show');
 });
 
 
@@ -399,6 +414,14 @@ Route::get('/boarding-houses/{id}',function ($id){
 
 
 Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
+    Route::get('/tenants', [OwnerTenantController::class, 'index']);
+    Route::post('/tenants', [OwnerTenantController::class, 'store']);
+    Route::get('/tenants/{tenant}', [OwnerTenantController::class, 'show']);
+    Route::put('/tenants/{tenant}', [OwnerTenantController::class, 'update']);
+    Route::post('/tenants/{tenant}/assignments', [OwnerTenantController::class, 'assign']);
+    Route::post('/tenants/{tenant}/transfer', [OwnerTenantController::class, 'transfer']);
+    Route::patch('/tenants/{tenant}/move-out', [OwnerTenantController::class, 'moveOut']);
+
     Route::get('/boarding-houses/{boardingHouse}/rooms', [
         OwnerBoardingHouseRoomController::class,
         'index',

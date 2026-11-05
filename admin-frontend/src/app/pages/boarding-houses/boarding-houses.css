@@ -1,0 +1,78 @@
+.boarding-houses-page { padding: 28px; color: #202938; }
+.page-header, .detail-header, .section-heading, .room-header, .pagination { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.page-header { margin-bottom: 22px; }
+.page-header h1, .detail-header h1 { margin: 0 0 7px; font-size: 25px; }
+.page-header p, .detail-header p, .section-heading p, .room-header p { margin: 0; color: #7b8493; font-size: 13px; }
+.total-card, .list-card, .detail-card { border: 1px solid #e8ebf0; border-radius: 10px; background: #fff; }
+.total-card { min-width: 135px; padding: 12px 18px; }
+.total-card span, .total-card strong, .property-name strong, .property-name small, .secondary-text { display: block; }
+.total-card span { color: #7b8493; font-size: 12px; }
+.total-card strong { margin-top: 5px; font-size: 23px; }
+.list-card, .detail-card { margin-bottom: 16px; padding: 20px; }
+.notice { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 15px; padding: 12px 15px; border-radius: 7px; }
+.notice-success { color: #176b3a; background: #e8f7ed; }
+.notice-error { color: #a82626; background: #fff0f0; }
+.toolbar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 16px; color: #596273; font-size: 13px; }
+.toolbar select { min-width: 155px; padding: 8px 11px; border: 1px solid #dfe3e9; border-radius: 7px; background: #fff; color: #374151; }
+.table-wrapper { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+thead { background: #f8f9fb; }
+th, td { padding: 13px 11px; border-bottom: 1px solid #edf0f3; white-space: nowrap; }
+th { color: #737e8d; font-size: 11px; text-transform: uppercase; }
+td { color: #4b5563; font-size: 13px; }
+.property-name strong, .owner-name { color: #202938; font-weight: 600; }
+.property-name small, .secondary-text { margin-top: 4px; color: #929baa; font-size: 12px; }
+.status-badge { display: inline-block; padding: 5px 9px; border-radius: 20px; background: #f0f2f5; color: #596273; font-size: 11px; font-weight: 600; text-transform: capitalize; }
+.status-badge.pending { background: #fff5df; color: #bd8216; }
+.status-badge.approved, .status-badge.available { background: #e5f7ed; color: #18864b; }
+.status-badge.rejected, .status-badge.occupied, .status-badge.under_maintenance { background: #feecec; color: #d14343; }
+.status-badge.reserved { background: #e8efff; color: #2563eb; }
+.view-button, .retry-button, .pagination button, .back-button, .decision-actions button {
+  padding: 8px 11px; border: 1px solid #dfe3e9; border-radius: 7px; background: #fff;
+  color: #374151; cursor: pointer; font-size: 12px;
+}
+.view-button, .back-button { color: #2563eb; }
+.state-message, .empty-state { padding: 30px; color: #7b8493; text-align: center; }
+.pagination { padding-top: 17px; color: #7b8493; font-size: 13px; }
+.pagination-actions, .decision-actions { display: flex; align-items: center; gap: 8px; }
+.pagination button:disabled, .decision-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.back-button { margin-bottom: 16px; }
+.detail-header { align-items: flex-start; margin-bottom: 20px; }
+.detail-header .eyebrow { margin-bottom: 7px; color: #7b8493; font-size: 11px; font-weight: 600; }
+.detail-status { display: flex; align-items: flex-end; flex-direction: column; gap: 11px; }
+.decision-actions .approve-button { border-color: #b7e5c7; background: #eaf8ef; color: #176b3a; }
+.decision-actions .reject-button { border-color: #f2c2c2; background: #fff0f0; color: #a82626; }
+.section-heading { align-items: flex-start; margin-bottom: 15px; }
+.section-heading h2 { margin: 0 0 5px; font-size: 18px; }
+.description { margin: 0 0 18px; color: #4b5563; line-height: 1.55; overflow-wrap: anywhere; }
+.detail-grid, .room-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; margin: 0; }
+.detail-grid > div, .room-details-grid > div { padding: 11px 0; border-bottom: 1px solid #edf0f3; }
+.detail-grid dt, .room-details-grid dt { margin-bottom: 5px; color: #7b8493; font-size: 12px; }
+.detail-grid dd, .room-details-grid dd { margin: 0; color: #202938; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.wide-detail { grid-column: 1 / -1; }
+.amenities-section, .room-amenities, .room-images { margin-top: 18px; }
+.amenities-section h3, .room-amenities h4, .room-images h4 { margin: 0 0 9px; color: #374151; font-size: 14px; }
+.amenity-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.amenity-list li { padding: 6px 10px; border-radius: 16px; background: #f1f5f9; color: #475569; font-size: 12px; }
+.muted-text { margin: 0; color: #7b8493; font-size: 13px; }
+.room-card { margin-top: 15px; padding: 16px; border: 1px solid #e8ebf0; border-radius: 9px; background: #fcfcfd; }
+.room-header { align-items: flex-start; }
+.room-header h3 { margin: 0 0 5px; font-size: 16px; }
+.room-details-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; }
+.room-description { margin: 13px 0 0; color: #596273; line-height: 1.5; }
+.image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 12px; }
+.image-item { min-width: 0; margin: 0; }
+.image-preview { display: grid; min-height: 115px; place-items: center; overflow: hidden; border: 1px solid #e8ebf0; border-radius: 8px; background: #f8f9fb; }
+.image-preview img { width: 100%; height: 145px; object-fit: cover; }
+.image-state { padding: 12px; color: #7b8493; font-size: 12px; text-align: center; }
+.image-error { color: #a82626; }
+.image-item figcaption { margin-top: 6px; color: #7b8493; font-size: 11px; }
+.detail-loading { border: 1px solid #e8ebf0; border-radius: 10px; background: #fff; }
+@media (max-width: 760px) {
+  .boarding-houses-page { padding: 18px; }
+  .page-header, .detail-header { align-items: flex-start; flex-direction: column; }
+  .detail-status { align-items: flex-start; }
+  .detail-grid, .room-details-grid { grid-template-columns: 1fr; }
+  .wide-detail { grid-column: auto; }
+  .list-card, .detail-card { padding: 15px; }
+}

@@ -11,6 +11,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -100,6 +101,27 @@ class OwnerBoardingHouseRoomController extends Controller
                 $images,
                 &$storedPaths
             ): BoardinghouseRoom {
+                $lockedRoom = BoardinghouseRoom::query()
+                    ->lockForUpdate()
+                    ->findOrFail($room->id);
+                $activeAssignments = $lockedRoom->assignments()
+                    ->where('status', 'active')
+                    ->count();
+
+                if ($validated['max_occupants'] < $activeAssignments) {
+                    throw ValidationException::withMessages([
+                        'max_occupants' => [
+                            'Room capacity cannot be lower than its current active occupancy.',
+                        ],
+                    ]);
+                }
+
+                if (in_array($validated['availability_status'], ['available', 'occupied'], true)) {
+                    $validated['availability_status'] = $activeAssignments >= $validated['max_occupants']
+                        ? 'occupied'
+                        : 'available';
+                }
+
                 $room->update($validated);
                 $this->storeImages($room, $images, $storedPaths);
 
@@ -123,6 +145,13 @@ class OwnerBoardingHouseRoomController extends Controller
         BoardinghouseRoom $room
     ): JsonResponse {
         $this->authorizeRoom($request, $boardingHouse, $room);
+        if ($room->assignments()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Rooms with assignment history cannot be deleted.',
+            ], 409);
+        }
+
         $imagePaths = $room->images()->pluck('image_path')->all();
         $room->delete();
         Storage::disk('public')->delete($imagePaths);

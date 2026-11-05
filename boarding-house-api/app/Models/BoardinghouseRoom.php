@@ -40,4 +40,9 @@ class BoardinghouseRoom extends Model
     {
         return $this->hasMany(RoomImage::class, 'boarding_house_room_id');
     }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(RoomAssignment::class, 'boarding_house_room_id');
+    }
 }

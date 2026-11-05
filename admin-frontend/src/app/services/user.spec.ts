@@ -53,4 +53,47 @@ describe('UserService', () => {
       data: {}
     });
   });
+
+  it('gets paginated boarding houses with an optional status filter', () => {
+    service.getAdminBoardingHouses('pending', 3).subscribe();
+
+    const request = httpTesting.expectOne(
+      'http://127.0.0.1:8000/api/admin/boarding-houses?page=3&status=pending'
+    );
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer admin-token');
+    request.flush({
+      success: true,
+      data: { data: [], current_page: 3, last_page: 3, total: 0, per_page: 15 }
+    });
+  });
+
+  it('requests listing details and updates status through the Admin endpoints', () => {
+    service.getAdminBoardingHouse(12).subscribe();
+    const detailsRequest = httpTesting.expectOne(
+      'http://127.0.0.1:8000/api/admin/boarding-houses/12'
+    );
+    expect(detailsRequest.request.headers.get('Authorization')).toBe('Bearer admin-token');
+    detailsRequest.flush({ success: true, data: { id: 12 } });
+
+    service.updateAdminBoardingHouseStatus(12, 'approved').subscribe();
+    const statusRequest = httpTesting.expectOne(
+      'http://127.0.0.1:8000/api/admin/boarding-houses/12/status'
+    );
+    expect(statusRequest.request.method).toBe('PATCH');
+    expect(statusRequest.request.body).toEqual({ status: 'approved' });
+    expect(statusRequest.request.headers.get('Authorization')).toBe('Bearer admin-token');
+    statusRequest.flush({ success: true, message: 'Approved.', data: { id: 12 } });
+  });
+
+  it('downloads room images as authenticated blobs', () => {
+    const imageUrl = 'http://127.0.0.1:8000/api/admin/boarding-houses/12/rooms/4/images/9';
+    service.getAdminBoardingHouseImage(imageUrl).subscribe();
+
+    const request = httpTesting.expectOne(imageUrl);
+    expect(request.request.method).toBe('GET');
+    expect(request.request.responseType).toBe('blob');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer admin-token');
+    request.flush(new Blob(['room photo'], { type: 'image/png' }));
+  });
 });

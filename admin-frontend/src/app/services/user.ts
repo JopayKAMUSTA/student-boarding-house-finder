@@ -45,6 +45,88 @@ export interface OwnerVerificationResponse {
   data: ManagedOwner;
 }
 
+export type BoardingHouseStatus = 'pending' | 'approved' | 'rejected';
+
+export interface AdminBoardingHouseOwner {
+  id: number;
+  name: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  email: string;
+  role: 'owner';
+  status: string;
+  owner_profile: Pick<
+    OwnerProfileDetails,
+    'contact_number' | 'business_name' | 'business_address' | 'verification_status' | 'verified_at'
+  > | null;
+}
+
+export interface AdminRoomImage {
+  id: number;
+  boarding_house_room_id: number;
+  image_path: string;
+  url: string;
+}
+
+export interface AdminBoardingHouseRoom {
+  id: number;
+  boarding_house_id: number;
+  room_number: string;
+  room_type: string;
+  monthly_rent: string | number;
+  pricing_basis: string;
+  max_occupants: number;
+  availability_status: string;
+  description: string | null;
+  amenities: string[] | null;
+  images: AdminRoomImage[];
+}
+
+export interface AdminBoardingHouse {
+  id: number;
+  owner_id: number;
+  name: string;
+  description: string | null;
+  city: string;
+  barangay: string | null;
+  address: string;
+  monthly_rent: string | number;
+  security_deposit: string | number;
+  advance_payment: string | number;
+  available_rooms: number;
+  total_rooms: number;
+  room_type: string | null;
+  amenities: string[] | null;
+  status: BoardingHouseStatus;
+  created_at: string;
+  updated_at: string;
+  owner: AdminBoardingHouseOwner;
+  rooms?: AdminBoardingHouseRoom[];
+}
+
+export interface AdminBoardingHousePageResponse {
+  success: boolean;
+  data: {
+    data: AdminBoardingHouse[];
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+  };
+}
+
+export interface AdminBoardingHouseResponse {
+  success: boolean;
+  data: AdminBoardingHouse;
+}
+
+export interface AdminBoardingHouseStatusResponse {
+  success: boolean;
+  message: string;
+  data: AdminBoardingHouse;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -100,6 +182,48 @@ export class UserService {
       { verification_status: verificationStatus },
       { headers: this.authorizationHeaders() }
     );
+  }
+
+  getAdminBoardingHouses(
+    status: BoardingHouseStatus | '',
+    page: number = 1
+  ): Observable<AdminBoardingHousePageResponse> {
+    let params = new HttpParams().set('page', page.toString());
+    if (status) {
+      params = params.set('status', status);
+    }
+
+    return this.http.get<AdminBoardingHousePageResponse>(
+      `${this.apiUrl}/admin/boarding-houses`,
+      { headers: this.authorizationHeaders(), params }
+    );
+  }
+
+  getAdminBoardingHouse(
+    boardingHouseId: number
+  ): Observable<AdminBoardingHouseResponse> {
+    return this.http.get<AdminBoardingHouseResponse>(
+      `${this.apiUrl}/admin/boarding-houses/${boardingHouseId}`,
+      { headers: this.authorizationHeaders() }
+    );
+  }
+
+  updateAdminBoardingHouseStatus(
+    boardingHouseId: number,
+    status: 'approved' | 'rejected'
+  ): Observable<AdminBoardingHouseStatusResponse> {
+    return this.http.patch<AdminBoardingHouseStatusResponse>(
+      `${this.apiUrl}/admin/boarding-houses/${boardingHouseId}/status`,
+      { status },
+      { headers: this.authorizationHeaders() }
+    );
+  }
+
+  getAdminBoardingHouseImage(imageUrl: string): Observable<Blob> {
+    return this.http.get(imageUrl, {
+      headers: this.authorizationHeaders(),
+      responseType: 'blob'
+    });
   }
 
   private authorizationHeaders(): HttpHeaders {

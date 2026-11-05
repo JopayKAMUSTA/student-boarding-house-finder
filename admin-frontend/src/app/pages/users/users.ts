@@ -1,5 +1,5 @@
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
@@ -13,7 +13,7 @@ import { UserService } from '../../services/user';
   styleUrl: './users.css'
 })
 export class Users implements OnInit {
-
+  private cdr = inject(ChangeDetectorRef);
   users: any[] = [];
 
   search = '';
@@ -48,11 +48,12 @@ export class Users implements OnInit {
       this.selectedStatus,
       page
     )
-    .pipe(
-      finalize(() => {
-        this.loading = false;
-      })
-    )
+.pipe(
+  finalize(() => {
+    this.loading = false;
+    this.cdr.detectChanges();
+  })
+)
     .subscribe({
 
       next: (response) => {
