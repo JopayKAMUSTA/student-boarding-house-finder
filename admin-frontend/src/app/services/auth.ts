@@ -31,7 +31,7 @@ export class AuthService {
       {},
       {
         headers: {
-          Authorization: `Bearer ${this.getToken()}`
+          Authorization: `Bearer ${this.getToken() ?? ''}`
         }
       }
     ).pipe(

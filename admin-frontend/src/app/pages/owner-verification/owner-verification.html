@@ -1,1 +1,177 @@
-<p>owner-verification works!</p>
+<div class="owners-page">
+  <div class="page-header">
+    <div>
+      <h1>Owner Management</h1>
+      <p>Review owner accounts and manage verification status.</p>
+    </div>
+    <div class="total-owners">
+      <span>Registered Owners</span>
+      <strong>{{ totalOwners }}</strong>
+    </div>
+  </div>
+
+  <div *ngIf="successMessage" class="notice notice-success" role="status">
+    {{ successMessage }}
+  </div>
+  <div *ngIf="errorMessage" class="notice notice-error" role="alert">
+    {{ errorMessage }}
+  </div>
+
+  <div class="owners-card">
+    <div *ngIf="loading" class="message" role="status">Loading owners...</div>
+
+    <div class="table-wrapper" *ngIf="!loading">
+      <table>
+        <thead>
+          <tr>
+            <th>Owner</th>
+            <th>Business</th>
+            <th>Contact</th>
+            <th>Account Status</th>
+            <th>Verification</th>
+            <th>Registered</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let owner of owners">
+            <td>
+              <div class="owner-name">
+                <strong>{{ ownerName(owner) }}</strong>
+                <small>{{ owner.email }}</small>
+              </div>
+            </td>
+            <td>{{ owner.owner_profile?.business_name || 'Not provided' }}</td>
+            <td>{{ owner.owner_profile?.contact_number || 'Not provided' }}</td>
+            <td>
+              <span class="status-badge" [ngClass]="owner.status">
+                {{ owner.status | titlecase }}
+              </span>
+            </td>
+            <td>
+              <span
+                class="status-badge"
+                [ngClass]="owner.owner_profile?.verification_status || 'missing'"
+              >
+                {{ owner.owner_profile?.verification_status || 'Profile missing' | titlecase }}
+              </span>
+            </td>
+            <td>{{ owner.created_at | date:'MMM d, y' }}</td>
+            <td>
+              <div class="action-buttons">
+                <button
+                  type="button"
+                  class="view-button"
+                  (click)="selectedOwner = owner"
+                >
+                  View
+                </button>
+                <button
+                  type="button"
+                  class="approve-button"
+                  [disabled]="!owner.owner_profile || updatingOwnerId !== null"
+                  (click)="updateVerification(owner, 'approved')"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  class="reject-button"
+                  [disabled]="!owner.owner_profile || updatingOwnerId !== null"
+                  (click)="updateVerification(owner, 'rejected')"
+                >
+                  Reject
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="owners.length === 0 && !errorMessage">
+            <td colspan="7" class="empty-state">No registered owners found.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination" *ngIf="!loading && totalOwners > 0">
+      <span>Page {{ currentPage }} of {{ lastPage }} ({{ totalOwners }} owners)</span>
+      <div>
+        <button type="button" [disabled]="currentPage <= 1" (click)="changePage(currentPage - 1)">
+          Previous
+        </button>
+        <button type="button" [disabled]="currentPage >= lastPage" (click)="changePage(currentPage + 1)">
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  class="modal-overlay"
+  *ngIf="selectedOwner"
+  (click)="selectedOwner = null"
+>
+  <section
+    class="owner-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="owner-details-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal-header">
+      <div>
+        <h2 id="owner-details-title">Owner Details</h2>
+        <p>Account and verification information</p>
+      </div>
+      <button type="button" class="close-button" aria-label="Close" (click)="selectedOwner = null">
+        &times;
+      </button>
+    </header>
+
+    <dl class="detail-list">
+      <div><dt>User ID</dt><dd>#{{ selectedOwner.id }}</dd></div>
+      <div><dt>Name</dt><dd>{{ ownerName(selectedOwner) }}</dd></div>
+      <div><dt>Email</dt><dd>{{ selectedOwner.email }}</dd></div>
+      <div><dt>Role</dt><dd>{{ selectedOwner.role | titlecase }}</dd></div>
+      <div><dt>Account Status</dt><dd>{{ selectedOwner.status | titlecase }}</dd></div>
+      <div><dt>Contact Number</dt><dd>{{ selectedOwner.owner_profile?.contact_number || 'Not provided' }}</dd></div>
+      <div><dt>Business Name</dt><dd>{{ selectedOwner.owner_profile?.business_name || 'Not provided' }}</dd></div>
+      <div><dt>Business Address</dt><dd>{{ selectedOwner.owner_profile?.business_address || 'Not provided' }}</dd></div>
+      <div>
+        <dt>Verification Status</dt>
+        <dd>{{ selectedOwner.owner_profile?.verification_status || 'Profile missing' | titlecase }}</dd>
+      </div>
+      <div>
+        <dt>Verified At</dt>
+        <dd>
+          {{ selectedOwner.owner_profile?.verified_at
+            ? (selectedOwner.owner_profile?.verified_at | date:'MMMM d, y, h:mm a')
+            : 'Not verified' }}
+        </dd>
+      </div>
+      <div><dt>Registered</dt><dd>{{ selectedOwner.created_at | date:'MMMM d, y' }}</dd></div>
+    </dl>
+
+    <footer class="modal-actions">
+      <button
+        type="button"
+        class="approve-button"
+        [disabled]="!selectedOwner.owner_profile || updatingOwnerId !== null"
+        (click)="updateVerification(selectedOwner, 'approved')"
+      >
+        Approve
+      </button>
+      <button
+        type="button"
+        class="reject-button"
+        [disabled]="!selectedOwner.owner_profile || updatingOwnerId !== null"
+        (click)="updateVerification(selectedOwner, 'rejected')"
+      >
+        Reject
+      </button>
+      <button type="button" class="close-modal-button" (click)="selectedOwner = null">
+        Close
+      </button>
+    </footer>
+  </section>
+</div>

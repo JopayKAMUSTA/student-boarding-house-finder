@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Log;
 use App\Models\StudentProfile;
 use App\Models\Boardinghouse;
 use App\Models\OwnerProfile;
+use App\Http\Controllers\AdminAuthController;
+use App\Http\Controllers\AdminOwnerController;
 use App\Http\Controllers\OwnerBoardingHouseRoomController;
 
 
@@ -113,6 +115,16 @@ Route::post('/login',function (Request $request){
         ],
     ]);
     
+});
+
+Route::post('/admin/login', [AdminAuthController::class, 'login']);
+
+Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+    Route::get('/owners', [AdminOwnerController::class, 'index']);
+    Route::patch('/owners/{owner}/verification', [
+        AdminOwnerController::class,
+        'updateVerification',
+    ]);
 });
 
 

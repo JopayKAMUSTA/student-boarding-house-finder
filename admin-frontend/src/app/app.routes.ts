@@ -5,6 +5,7 @@ import { AdminLayoutComponent } from './layouts/admin-layout/admin-layout';
 import { Dashboard } from './pages/dashboard/dashboard';
 import { Login } from './pages/login/login';
 import { Users } from './pages/users/users';
+import { OwnerVerification } from './pages/owner-verification/owner-verification';
 import { authGuard } from './guards/auth-guard';
 
 export const routes: Routes = [
@@ -34,6 +35,17 @@ export const routes: Routes = [
       {
         path: 'users',
         component: Users
+      },
+
+      {
+        path: 'owners',
+        component: OwnerVerification
+      },
+
+      {
+        path: 'owner-verification',
+        redirectTo: 'owners',
+        pathMatch: 'full'
       }
 
     ]
