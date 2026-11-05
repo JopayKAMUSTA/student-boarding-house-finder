@@ -1,0 +1,75 @@
+
+<div class="admin-container">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">T</div>
+      <div>
+        <h2>TAGSTAY</h2>
+        <span>ADMIN PANEL</span>
+      </div>
+    </div>
+
+    <div class="menu-label">MAIN MENU</div>
+
+    <nav>
+      <a routerLink="/dashboard" routerLinkActive="active">
+        <span>▦</span> Dashboard
+      </a>
+
+      <a routerLink="/users" routerLinkActive="active">
+        <span>♙</span> User Management
+      </a>
+
+      <a routerLink="/boarding-houses" routerLinkActive="active">
+        <span>⌂</span> Boarding Houses
+      </a>
+
+      <a routerLink="/owner-verification" routerLinkActive="active">
+        <span>✓</span> Owner Verification
+      </a>
+
+      <a routerLink="/reports" routerLinkActive="active">
+        <span>▤</span> Reports
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="menu-label">SYSTEM</div>
+
+      <a routerLink="/settings">
+        <span>⚙</span> Settings
+      </a>
+
+      <a (click)="logout()" role="button" tabindex="0">
+        <span>↪</span> Logout
+      </a>
+
+      <div class="admin-info">
+        <div class="avatar">{{ adminInitial }}</div>
+        <div>
+          <strong>{{ adminName }}</strong>
+          <small>{{ admin?.email }}</small>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <h3>Administration</h3>
+        <p>Manage your TagStay platform</p>
+      </div>
+
+      <div class="topbar-right">
+        <span class="status-dot"></span>
+        <span>System Online</span>
+        <div class="top-avatar">{{ adminInitial }}</div>
+      </div>
+    </header>
+
+    <section class="page-content">
+      <router-outlet></router-outlet>
+    </section>
+  </main>
+</div>

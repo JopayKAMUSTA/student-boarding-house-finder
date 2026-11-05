@@ -1,0 +1,286 @@
+
+<div class="users-page">
+
+  <div class="page-header">
+    <div>
+      <h1>User Management</h1>
+      <p>Manage and monitor all registered TagStay accounts.</p>
+    </div>
+
+    <div class="total-users">
+      <span>Total Users</span>
+      <strong>{{ totalUsers }}</strong>
+    </div>
+  </div>
+
+  <div class="users-card">
+
+    <div class="toolbar">
+
+      <div class="search-box">
+        <input
+          type="text"
+          placeholder="Search name or email..."
+          [(ngModel)]="search"
+          (keyup.enter)="searchUsers()"
+        />
+
+        <button type="button" (click)="searchUsers()">
+          Search
+        </button>
+      </div>
+
+      <div class="filters">
+
+        <select
+          [(ngModel)]="selectedRole"
+          (change)="filterUsers()"
+        >
+          <option value="">All Roles</option>
+          <option value="student">Student</option>
+          <option value="owner">Owner</option>
+          <option value="admin">Admin</option>
+        </select>
+
+        <select
+          [(ngModel)]="selectedStatus"
+          (change)="filterUsers()"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="pending">Pending</option>
+          <option value="suspended">Suspended</option>
+        </select>
+
+        <button
+          type="button"
+          class="clear-button"
+          (click)="clearFilters()"
+        >
+          Clear
+        </button>
+
+      </div>
+
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="message">
+      Loading users...
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="errorMessage && !loading" class="error-message">
+      {{ errorMessage }}
+    </div>
+
+    <!-- Users Table -->
+    <div class="table-wrapper" *ngIf="!loading && !errorMessage">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Date Registered</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          <tr *ngFor="let user of users">
+
+            <td>
+              <div class="user-info">
+                <div class="user-avatar">
+                  {{ getUserInitial(user.name) }}
+                </div>
+
+                <div class="user-name">
+                  <strong>{{ user.name }}</strong>
+                  <small>#{{ user.id }}</small>
+                </div>
+              </div>
+            </td>
+
+            <td>{{ user.email }}</td>
+
+            <td>
+              <span class="role-badge" [ngClass]="user.role">
+                {{ user.role }}
+              </span>
+            </td>
+
+            <td>
+              <span class="status-badge" [ngClass]="user.status">
+                {{ user.status }}
+              </span>
+            </td>
+
+            <td>
+              {{ user.created_at | date:'MMM d, y' }}
+            </td>
+
+            <td>
+              <button
+                type="button"
+                class="view-button"
+                (click)="viewUser(user)"
+              >
+                View
+              </button>
+            </td>
+
+          </tr>
+
+          <tr *ngIf="users.length === 0">
+            <td colspan="6" class="empty-state">
+              No users found.
+            </td>
+          </tr>
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+    <!-- Pagination -->
+    <div
+      class="pagination"
+      *ngIf="!loading && !errorMessage && totalUsers > 0"
+    >
+
+      <span>
+        Page {{ currentPage }} of {{ lastPage }}
+        ({{ totalUsers }} users)
+      </span>
+
+      <div class="pagination-buttons">
+
+        <button
+          type="button"
+          [disabled]="currentPage === 1"
+          (click)="changePage(currentPage - 1)"
+        >
+          Previous
+        </button>
+
+        <button
+          type="button"
+          [disabled]="currentPage === lastPage"
+          (click)="changePage(currentPage + 1)"
+        >
+          Next
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- USER DETAILS MODAL -->
+<div
+  class="modal-overlay"
+  *ngIf="showUserModal && selectedUser"
+  (click)="closeUserModal()"
+>
+
+  <div
+    class="user-modal"
+    (click)="$event.stopPropagation()"
+  >
+
+    <div class="modal-header">
+
+      <div>
+        <h2>User Details</h2>
+        <p>Account information</p>
+      </div>
+
+      <button
+        type="button"
+        class="close-button"
+        (click)="closeUserModal()"
+      >
+        &times;
+      </button>
+
+    </div>
+
+    <div class="modal-profile">
+
+      <div class="modal-avatar">
+        {{ getUserInitial(selectedUser.name) }}
+      </div>
+
+      <h3>{{ selectedUser.name }}</h3>
+      <p>{{ selectedUser.email }}</p>
+
+    </div>
+
+    <div class="detail-list">
+
+      <div>
+        <span>User ID</span>
+        <strong>#{{ selectedUser.id }}</strong>
+      </div>
+
+      <div>
+        <span>First Name</span>
+        <strong>{{ selectedUser.first_name || 'Not provided' }}</strong>
+      </div>
+
+      <div>
+        <span>Middle Name</span>
+        <strong>{{ selectedUser.middle_name || 'Not provided' }}</strong>
+      </div>
+
+      <div>
+        <span>Last Name</span>
+        <strong>{{ selectedUser.last_name || 'Not provided' }}</strong>
+      </div>
+
+      <div>
+        <span>Email Address</span>
+        <strong>{{ selectedUser.email }}</strong>
+      </div>
+
+      <div>
+        <span>Role</span>
+        <strong>{{ selectedUser.role | titlecase }}</strong>
+      </div>
+
+      <div>
+        <span>Account Status</span>
+        <strong>{{ selectedUser.status | titlecase }}</strong>
+      </div>
+
+      <div>
+        <span>Date Registered</span>
+        <strong>
+          {{ selectedUser.created_at | date:'MMMM d, y' }}
+        </strong>
+      </div>
+
+    </div>
+
+    <button
+      type="button"
+      class="close-modal-button"
+      (click)="closeUserModal()"
+    >
+      Close
+    </button>
+
+  </div>
+
+</div>
