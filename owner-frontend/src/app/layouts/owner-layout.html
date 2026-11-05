@@ -1,0 +1,26 @@
+<div class="owner-shell">
+  <app-owner-sidebar />
+
+  <div class="owner-workspace">
+    <header class="owner-header">
+      <div class="header-context">
+        <p class="eyebrow">OWNER PORTAL</p>
+        <span class="header-caption">Property management</span>
+      </div>
+      <div class="owner-details" *ngIf="ownerName || ownerEmail || ownerRole">
+        <span class="owner-avatar" aria-hidden="true">
+          {{ ownerName ? ownerName.charAt(0).toUpperCase() : 'O' }}
+        </span>
+        <span class="owner-identity">
+          <strong>{{ ownerName || 'Owner' }}</strong>
+          <span *ngIf="ownerEmail">{{ ownerEmail }}</span>
+        </span>
+        <span class="role" *ngIf="ownerRole">{{ ownerRole }}</span>
+      </div>
+    </header>
+
+    <main class="owner-content">
+      <router-outlet />
+    </main>
+  </div>
+</div>

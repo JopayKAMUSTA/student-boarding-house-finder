@@ -1,22 +1,22 @@
 :host {
-  --blue-900: #0b2a5b;
-  --blue-700: #1347a8;
-  --blue-600: #1d5bd6;
-  --blue-500: #2f74f0;
-  --blue-100: #e3edff;
-  --blue-50: #f3f7ff;
-  --ink: #14213d;
-  --muted: #5d6b85;
-  --line: #dde5f3;
+  --blue-900: #0f172a;
+  --blue-700: #1e40af;
+  --blue-600: #2563eb;
+  --blue-500: #3b82f6;
+  --blue-100: #dbeafe;
+  --blue-50: #eff6ff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
   --surface: #ffffff;
-  --bg: #f5f8fd;
-  --danger: #b42318;
+  --bg: #f8fafc;
+  --danger: #dc2626;
   --danger-bg: #fef0ee;
 
   display: block;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
 }
 
@@ -34,21 +34,11 @@ svg {
 }
 
 .room-management-page {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 32px clamp(20px, 4vw, 48px) 56px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 28px;
 }
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--blue-700);
-  font-weight: 600;
-  font-size: 0.92rem;
-  text-decoration: none;
-}
-.back-link:hover { text-decoration: underline; }
 
 /* ---------- Header ---------- */
 .room-page-header {
@@ -56,9 +46,9 @@ svg {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  margin: 16px 0 28px;
+  margin: 0 0 22px;
 }
-.room-page-header h1 { margin: 0; font-size: 1.75rem; line-height: 1.2; letter-spacing: -0.01em; }
+.room-page-header h1 { margin: 0; font-size: 1.55rem; line-height: 1.25; letter-spacing: -0.025em; }
 .room-page-header h2 { margin: 8px 0 0; font-size: 1.1rem; font-weight: 600; color: var(--blue-700); }
 .room-page-header p { margin: 2px 0 0; color: var(--muted); font-size: 0.92rem; }
 
@@ -70,9 +60,10 @@ svg {
   gap: 8px;
   font: inherit;
   font-weight: 600;
-  font-size: 0.9rem;
-  padding: 10px 18px;
-  border-radius: 10px;
+  min-height: 40px;
+  font-size: 0.88rem;
+  padding: 9px 15px;
+  border-radius: 8px;
   border: 1px solid transparent;
   text-decoration: none;
   cursor: pointer;
@@ -121,10 +112,10 @@ a:focus-visible, button:focus-visible {
 /* ---------- Empty state ---------- */
 .empty {
   text-align: center;
-  padding: 56px 24px;
+  padding: 40px 24px;
   background: var(--surface);
-  border: 1px dashed #b9cdf5;
-  border-radius: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
 }
 .empty-icon {
   display: inline-grid;
@@ -143,17 +134,18 @@ a:focus-visible, button:focus-visible {
 /* ---------- Room list ---------- */
 .count { margin: 0 0 16px; color: var(--muted); font-weight: 500; }
 
-.room-list { display: flex; flex-direction: column; gap: 20px; }
+.room-list { display: flex; flex-direction: column; gap: 14px; }
 
 .room-card {
   display: grid;
-  grid-template-columns: 200px 1fr auto;
-  gap: 24px;
+  grid-template-columns: 176px minmax(0, 1fr) auto;
+  gap: 20px;
   align-items: center;
-  padding: 20px;
+  padding: 17px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
 }
 
 .room-photo {
@@ -201,7 +193,7 @@ a:focus-visible, button:focus-visible {
   background: var(--blue-100);
   color: var(--blue-700);
 }
-.badge[data-status="available"] { background: #e3f6ec; color: #136c3a; }
+.badge[data-status="available"] { background: #f0fdf4; color: #15803d; }
 .badge[data-status="occupied"] { background: #fff4de; color: #8a5a00; }
 .badge[data-status="unavailable"],
 .badge[data-status="maintenance"] { background: #eceff5; color: #4a566e; }
@@ -238,6 +230,11 @@ a:focus-visible, button:focus-visible {
   .room-page-header { flex-direction: column; }
   .room-card { grid-template-columns: 1fr; gap: 16px; }
   .room-photo { aspect-ratio: 16 / 9; }
-  .room-actions { flex-direction: row; }
+  .room-actions { flex-direction: row; min-width: 0; }
   .room-actions > * { flex: 1; }
+}
+
+@media (min-width: 761px) and (max-width: 1060px) {
+  .room-card { grid-template-columns: 144px minmax(0, 1fr); }
+  .room-actions { grid-column: 2; flex-direction: row; }
 }

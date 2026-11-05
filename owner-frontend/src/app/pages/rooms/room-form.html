@@ -1,87 +1,148 @@
-<div class="boarding-houses-page">
+<div class="room-form-page">
+  <a class="back-link" [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms']">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+    Back to Room Management
+  </a>
+
   <header class="page-header">
-    <div>
-      <h1>My Boarding Houses</h1>
-      <p>Boarding houses submitted from your owner account.</p>
-    </div>
-    <a routerLink="/add-boarding-house" class="btn btn-primary">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      Add Boarding House
-    </a>
+    <p class="page-kicker">ROOM MANAGEMENT</p>
+    <h2>{{ roomId === null ? 'Add a New Room' : 'Edit Room' }}</h2>
+    <p>Set up the room details, amenities, and photos for boarding house #{{ boardingHouseId }}.</p>
   </header>
 
   <p *ngIf="isLoading" role="status" class="notice">
     <span class="spinner" aria-hidden="true"></span>
-    Loading your boarding houses...
+    Loading room details...
   </p>
+  <p *ngIf="errorMessage" role="alert" class="notice notice-error">{{ errorMessage }}</p>
 
-  <div *ngIf="errorMessage" role="alert" class="notice notice-error">
-    <p>{{ errorMessage }}</p>
-    <button type="button" class="btn btn-outline" (click)="loadBoardingHouses()" [disabled]="isLoading">
-      Try Again
-    </button>
-  </div>
-
-  <div *ngIf="!isLoading && !errorMessage && total === 0" class="empty">
-    <span class="empty-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/></svg>
-    </span>
-    <h2>You have not added any boarding houses yet.</h2>
-    <p>Add your first boarding house to start managing rooms.</p>
-    <a routerLink="/add-boarding-house" class="btn btn-primary">Add your first boarding house</a>
-  </div>
-
-  <section *ngIf="!isLoading && !errorMessage && boardingHouses.length > 0"
-    aria-label="Your boarding houses">
-    <p class="count">{{ total }} boarding house{{ total === 1 ? '' : 's' }}</p>
-
-    <div class="grid">
-      <article *ngFor="let house of boardingHouses" class="boarding-house">
-        <div class="card-top">
-          <h2>{{ house.name || 'Boarding House' }}</h2>
-          <span *ngIf="house.status" class="badge" [attr.data-status]="house.status | lowercase">
-            {{ house.status }}
-          </span>
+  <form *ngIf="!isLoading" #roomForm="ngForm" (ngSubmit)="submit(roomForm)">
+    <section class="panel" aria-labelledby="room-details-heading">
+      <h3 id="room-details-heading">Room details <span>Required fields are marked with *</span></h3>
+      <div class="fields">
+        <div class="field">
+          <label for="room_number">Room Number *</label>
+          <input id="room_number" name="room_number" type="text" maxlength="100"
+            [(ngModel)]="formModel.room_number" required />
         </div>
 
-        <p class="location">
-          {{ house.address ? house.address + ', ' : '' }}{{ house.barangay ? house.barangay + ', ' : '' }}{{ house.city }}
-        </p>
+        <div class="field">
+          <label for="room_type">Room Type *</label>
+          <select id="room_type" name="room_type" [(ngModel)]="formModel.room_type" required>
+            <option value="" disabled>Select room type</option>
+            <option *ngFor="let type of roomTypes" [ngValue]="type">{{ type }}</option>
+          </select>
+        </div>
 
-        <dl class="stats">
-          <div *ngIf="house.monthly_rent !== undefined">
-            <dt>Starting rent</dt>
-            <dd>{{ house.monthly_rent | currency:'PHP':'symbol':'1.0-0' }}<small>/month</small></dd>
+        <div class="field">
+          <label for="monthly_rent">Monthly Rent (PHP) *</label>
+          <div class="input-prefix">
+            <span aria-hidden="true">₱</span>
+            <input id="monthly_rent" name="monthly_rent" type="number" min="0.01"
+              step="0.01" [(ngModel)]="formModel.monthly_rent" required />
           </div>
-          <div>
-            <dt>Rooms available</dt>
-            <dd>{{ house.available_rooms }}<small>of {{ house.total_rooms }}</small></dd>
-          </div>
-        </dl>
+        </div>
 
-        <p class="meta" *ngIf="house.room_type">{{ house.room_type }}</p>
+        <div class="field">
+          <label for="pricing_basis">Pricing Basis *</label>
+          <select id="pricing_basis" name="pricing_basis"
+            [(ngModel)]="formModel.pricing_basis" required>
+            <option *ngFor="let basis of pricingBases" [ngValue]="basis.value">
+              {{ basis.label }}
+            </option>
+          </select>
+        </div>
 
-        <ul class="amenities" *ngIf="house.amenities?.length" aria-label="Amenities">
-          <li *ngFor="let amenity of house.amenities?.slice(0, 3)">{{ amenity }}</li>
-          <li class="more" *ngIf="house.amenities && house.amenities.length > 3">
-            +{{ house.amenities.length - 3 }} more
-          </li>
-        </ul>
+        <div class="field">
+          <label for="max_occupants">Maximum Occupants *</label>
+          <input id="max_occupants" name="max_occupants" type="number" min="1"
+            step="1" [(ngModel)]="formModel.max_occupants" required />
+        </div>
 
-        <a class="manage-rooms-button btn btn-outline"
-          *ngIf="house.id"
-          [routerLink]="['/owner/boarding-houses', house.id, 'rooms']">
-          Manage Rooms
-        </a>
-      </article>
+        <div class="field">
+          <label for="availability_status">Availability *</label>
+          <select id="availability_status" name="availability_status"
+            [(ngModel)]="formModel.availability_status" required>
+            <option *ngFor="let status of availabilityStatuses" [ngValue]="status.value">
+              {{ status.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="field full">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4"
+            [(ngModel)]="formModel.description"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="amenities-heading">
+      <h3 id="amenities-heading">Amenities</h3>
+      <div class="chips">
+        <label *ngFor="let amenity of amenityOptions" class="amenity-option">
+          <input type="checkbox" [checked]="isAmenitySelected(amenity)"
+            (change)="toggleAmenity(amenity, $event)" />
+          <span>{{ amenity }}</span>
+        </label>
+      </div>
+
+      <div class="other-amenity-entry">
+        <label class="sr-only" for="new-amenity">Add another amenity</label>
+        <input id="new-amenity" name="new_amenity" type="text" maxlength="100"
+          [(ngModel)]="newAmenity" placeholder="Add another amenity" />
+        <button type="button" class="btn btn-outline" (click)="addOtherAmenity()">
+          Add amenity
+        </button>
+      </div>
+      <ul class="added-list" *ngIf="otherAmenities.length">
+        <li *ngFor="let amenity of otherAmenities; let i = index">
+          {{ amenity }}
+          <button type="button" class="link-btn" (click)="removeOtherAmenity(i)">
+            Remove
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <section class="panel" aria-labelledby="photos-heading">
+      <h3 id="photos-heading">Room photos</h3>
+      <label class="sr-only" for="room-images">Select room photos</label>
+      <input id="room-images" class="file-input" type="file"
+        accept="image/jpeg,image/png,image/webp" multiple (change)="selectImages($event)" />
+      <div class="photo-grid" *ngIf="selectedImages.length">
+        <figure *ngFor="let preview of selectedImages; let i = index">
+          <img [src]="preview.url" [alt]="'Preview of ' + preview.file.name" />
+          <figcaption>
+            {{ preview.file.name }}
+            <button type="button" class="link-btn" (click)="removeSelectedImage(i)">
+              Remove
+            </button>
+          </figcaption>
+        </figure>
+      </div>
+      <div class="photo-grid" *ngIf="savedImages.length">
+        <figure *ngFor="let image of savedImages">
+          <img *ngIf="savedImageUrls[image.id]" [src]="savedImageUrls[image.id]"
+            alt="Saved room photo" />
+          <figcaption>
+            Saved photo
+            <button type="button" class="link-btn" (click)="removeSavedImage(image)"
+              [disabled]="deletingImageId === image.id">
+              {{ deletingImageId === image.id ? 'Removing...' : 'Remove' }}
+            </button>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <div class="actions">
+      <a class="btn btn-outline" [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms']">
+        Cancel
+      </a>
+      <button type="submit" class="btn btn-primary" [disabled]="isSubmitting">
+        {{ isSubmitting ? 'Saving...' : roomId === null ? 'Create Room' : 'Save Changes' }}
+      </button>
     </div>
-
-    <nav *ngIf="lastPage > 1" aria-label="Boarding-house pages" class="pagination">
-      <button type="button" class="btn btn-outline" (click)="previousPage()"
-        [disabled]="isLoading || currentPage <= 1">Previous</button>
-      <span>Page {{ currentPage }} of {{ lastPage }}</span>
-      <button type="button" class="btn btn-outline" (click)="nextPage()"
-        [disabled]="isLoading || currentPage >= lastPage">Next</button>
-    </nav>
-  </section>
+  </form>
 </div>

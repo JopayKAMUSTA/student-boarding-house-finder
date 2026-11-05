@@ -103,6 +103,10 @@ this.ownerAuth.getOwnerRooms(
   }
 
   deleteRoom(room: ManagedRoomInfo): void {
+    if (this.deletingRoomId !== null) {
+      return;
+    }
+
     if (!window.confirm(`Delete room "${room.room_number}" and its photos?`)) {
       return;
     }
@@ -117,24 +121,36 @@ this.ownerAuth.getOwnerRooms(
 
     this.deletingRoomId = room.id;
     this.errorMessage = '';
+    const previousRooms = this.rooms;
+    const previousTotal = this.total;
+    this.rooms = this.rooms.filter((item) => item.id !== room.id);
+    this.total = Math.max(0, this.total - 1);
+    this.cdr.detectChanges();
+
     this.ownerAuth.deleteOwnerRoom(token, this.boardingHouseId, room.id).subscribe({
       next: (response) => {
         this.deletingRoomId = null;
         if (!response.success) {
+          this.rooms = previousRooms;
+          this.total = previousTotal;
           this.errorMessage = response.message || 'The room could not be deleted.';
+          this.cdr.detectChanges();
           return;
         }
 
-        this.rooms = this.rooms.filter((item) => item.id !== room.id);
         room.images.forEach((image) => this.revokeImageUrl(image.id));
-        this.total = Math.max(0, this.total - 1);
         if (this.rooms.length === 0 && this.currentPage > 1) {
           this.loadRooms(this.currentPage - 1);
+        } else {
+          this.cdr.detectChanges();
         }
       },
       error: (error: HttpErrorResponse) => {
         this.deletingRoomId = null;
+        this.rooms = previousRooms;
+        this.total = previousTotal;
         this.handleApiError(error);
+        this.cdr.detectChanges();
       }
     });
   }

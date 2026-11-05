@@ -1,0 +1,33 @@
+:host {
+  display: block;
+  color: #0f172a;
+}
+
+.page-header {
+  margin: 0 0 24px;
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 1.55rem;
+  letter-spacing: -0.025em;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.profile-placeholder {
+  max-width: 1080px;
+  padding: 22px 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
+}
+
+.profile-placeholder p {
+  margin: 0;
+  color: #64748b;
+}

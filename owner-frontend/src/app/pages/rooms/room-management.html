@@ -1,6 +1,6 @@
 <div class="room-management-page">
   <a class="back-link" routerLink="/boarding-houses">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
     Back to My Boarding Houses
   </a>
 
@@ -26,6 +26,10 @@
     Loading rooms...
   </p>
 
+  <p *ngIf="deletingRoomId !== null" role="status" class="notice">
+    Deleting room and its photos...
+  </p>
+
   <div *ngIf="errorMessage" role="alert" class="notice notice-error">
     <p>{{ errorMessage }}</p>
     <button type="button" class="btn btn-outline" (click)="loadRooms()" [disabled]="isLoading">
@@ -45,7 +49,7 @@
       [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', 'new']">Add your first room</a>
   </section>
 
-  <section *ngIf="!isLoading && !errorMessage && rooms.length > 0"
+  <section *ngIf="!isLoading && rooms.length > 0"
     aria-label="Rooms in this boarding house">
     <p class="count">{{ total }} room{{ total === 1 ? '' : 's' }}</p>
 

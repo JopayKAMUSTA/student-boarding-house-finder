@@ -11,9 +11,15 @@ describe('RoomForm', () => {
   let fixture: ComponentFixture<RoomForm>;
   let component: RoomForm;
   let submittedData: FormData | null;
+  let submittedBoardingHouseId: number | null;
+  let routeParams = convertToParamMap({ boardingHouseId: '42' });
+  let requestedRoom: { boardingHouseId: number; roomId: number } | null;
 
   beforeEach(async () => {
     submittedData = null;
+    submittedBoardingHouseId = null;
+    requestedRoom = null;
+    routeParams = convertToParamMap({ boardingHouseId: '42' });
     await TestBed.configureTestingModule({
       imports: [RoomForm],
       providers: [
@@ -22,7 +28,9 @@ describe('RoomForm', () => {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
-              paramMap: convertToParamMap({ boardingHouseId: '42' })
+              get paramMap() {
+                return routeParams;
+              }
             }
           }
         },
@@ -30,11 +38,39 @@ describe('RoomForm', () => {
           provide: OwnerAuth,
           useValue: {
             getToken: () => 'owner-token',
-            createOwnerRoom: (_token: string, _boardingHouseId: number, data: FormData) => {
+            createOwnerRoom: (
+              _token: string,
+              boardingHouseId: number,
+              data: FormData
+            ) => {
+              submittedBoardingHouseId = boardingHouseId;
               submittedData = data;
               return of({
                 success: true,
                 data: { id: 2, images: [] }
+              });
+            },
+            getOwnerRoom: (
+              _token: string,
+              boardingHouseId: number,
+              roomId: number
+            ) => {
+              requestedRoom = { boardingHouseId, roomId };
+              return of({
+                success: true,
+                data: {
+                  id: roomId,
+                  boarding_house_id: boardingHouseId,
+                  room_number: '201',
+                  room_type: 'Single Room',
+                  monthly_rent: '3500',
+                  pricing_basis: 'per_person',
+                  max_occupants: 1,
+                  availability_status: 'available',
+                  description: null,
+                  amenities: [],
+                  images: []
+                }
               });
             }
           }
@@ -65,6 +101,8 @@ describe('RoomForm', () => {
 
     component.submit(form);
 
+    expect(component.boardingHouseId).toBe(42);
+    expect(submittedBoardingHouseId).toBe(42);
     expect(submittedData).toBeInstanceOf(FormData);
     expect(submittedData?.get('room_number')).toBe('201');
     expect(submittedData?.get('monthly_rent')).toBe('3500');
@@ -99,5 +137,19 @@ describe('RoomForm', () => {
     component.addOtherAmenity();
 
     expect(component.otherAmenities).toEqual(['Balcony', 'Laundry area']);
+  });
+
+  it('loads the selected room for the boarding house in the edit route', () => {
+    routeParams = convertToParamMap({
+      boardingHouseId: '42',
+      roomId: '7'
+    });
+
+    fixture.detectChanges();
+
+    expect(requestedRoom).toEqual({ boardingHouseId: 42, roomId: 7 });
+    expect(component.boardingHouseId).toBe(42);
+    expect(component.roomId).toBe(7);
+    expect(component.formModel.room_number).toBe('201');
   });
 });

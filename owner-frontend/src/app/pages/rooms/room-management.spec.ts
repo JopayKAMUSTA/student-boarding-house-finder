@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { EMPTY, of } from 'rxjs';
-import { OwnerAuth } from '../../services/owner-auth';
+import { EMPTY, Observable, Subject, of } from 'rxjs';
+import { ManagedRoomInfo, OwnerAuth } from '../../services/owner-auth';
 import { RoomManagement } from './room-management';
 
 describe('RoomManagement', () => {
   let component: RoomManagement;
   let fixture: ComponentFixture<RoomManagement>;
+  let deleteResponse: () => Observable<{ success: boolean; message?: string }>;
   let response: {
     success: boolean;
     boarding_house: {
@@ -17,7 +19,7 @@ describe('RoomManagement', () => {
       city: string;
     };
     data: {
-      data: Array<Record<string, unknown>>;
+      data: ManagedRoomInfo[];
       total: number;
       current_page: number;
       last_page: number;
@@ -36,6 +38,7 @@ describe('RoomManagement', () => {
       },
       data: { data: [], total: 0, current_page: 1, last_page: 1 }
     };
+    deleteResponse = () => of({ success: true });
     await TestBed.configureTestingModule({
       imports: [RoomManagement],
       providers: [
@@ -53,7 +56,8 @@ describe('RoomManagement', () => {
           useValue: {
             getToken: () => 'owner-token',
             getOwnerRooms: () => of(response),
-            getOwnerRoomImage: () => EMPTY
+            getOwnerRoomImage: () => EMPTY,
+            deleteOwnerRoom: () => deleteResponse()
           }
         }
       ]
@@ -96,5 +100,86 @@ describe('RoomManagement', () => {
     expect(fixture.nativeElement.textContent).toContain('201');
     expect(fixture.nativeElement.textContent).toContain('Single Room');
     expect(fixture.nativeElement.querySelector('img')).not.toBeNull();
+  });
+
+  it('removes a room immediately and restores it if deletion fails', async () => {
+    const room: ManagedRoomInfo = {
+      id: 9,
+      boarding_house_id: 42,
+      room_number: '201',
+      room_type: 'Single Room',
+      monthly_rent: 5000,
+      pricing_basis: 'per_person',
+      max_occupants: 1,
+      availability_status: 'available',
+      description: null,
+      amenities: [],
+      images: []
+    };
+    response.data.data = [room];
+    response.data.total = 1;
+    const deleteRequest = new Subject<{ success: boolean; message?: string }>();
+    deleteResponse = () => deleteRequest;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    fixture.detectChanges();
+    component.deleteRoom(room);
+    fixture.detectChanges();
+
+    expect(component.rooms).toHaveLength(0);
+    expect(component.total).toBe(0);
+    expect(component.deletingRoomId).toBe(room.id);
+    expect(fixture.nativeElement.textContent).toContain('Deleting room and its photos...');
+    expect(fixture.nativeElement.textContent).not.toContain('201');
+
+    deleteRequest.error(new HttpErrorResponse({
+      status: 500,
+      error: { message: 'The room could not be deleted.' }
+    }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.rooms).toEqual([room]);
+    expect(component.total).toBe(1);
+    expect(component.deletingRoomId).toBeNull();
+    expect(component.errorMessage).toBe('The room could not be deleted.');
+    expect(fixture.nativeElement.textContent).toContain('201');
+    expect(fixture.nativeElement.textContent).not.toContain('Deleting room and its photos...');
+    vi.restoreAllMocks();
+  });
+
+  it('keeps the room removed after successful deletion', async () => {
+    const room: ManagedRoomInfo = {
+      id: 9,
+      boarding_house_id: 42,
+      room_number: '201',
+      room_type: 'Single Room',
+      monthly_rent: 5000,
+      pricing_basis: 'per_person',
+      max_occupants: 1,
+      availability_status: 'available',
+      description: null,
+      amenities: [],
+      images: []
+    };
+    response.data.data = [room];
+    response.data.total = 1;
+    const deleteRequest = new Subject<{ success: boolean; message?: string }>();
+    deleteResponse = () => deleteRequest;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    fixture.detectChanges();
+    component.deleteRoom(room);
+    deleteRequest.next({ success: true });
+    deleteRequest.complete();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.rooms).toHaveLength(0);
+    expect(component.total).toBe(0);
+    expect(component.deletingRoomId).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('201');
+    expect(fixture.nativeElement.textContent).not.toContain('Deleting room and its photos...');
+    vi.restoreAllMocks();
   });
 });

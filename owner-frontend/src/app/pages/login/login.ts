@@ -20,6 +20,7 @@ export class Login {
 
   errorMessage = '';
   isSubmitting = false;
+  showPassword = false;
   statusMessage = this.getStatusMessage();
 
   login(form: NgForm) {

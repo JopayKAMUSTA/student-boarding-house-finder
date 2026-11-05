@@ -1,59 +1,15 @@
-<div class="shell">
-  <aside class="sidebar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
-      </span>
-      <span class="brand-name">Owner Portal</span>
+<section class="dashboard-page" aria-labelledby="summary-heading">
+  <header class="page-heading">
+    <div>
+      <h2 id="summary-heading">Dashboard overview</h2>
+      <p>Your boarding-house and room summary.</p>
     </div>
+  </header>
 
-    <nav aria-label="Owner navigation" class="nav">
-      <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z"/></svg>
-        Dashboard
-      </a>
-      <a routerLink="/boarding-houses" routerLinkActive="active">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/></svg>
-        My Boarding Houses
-      </a>
-      <a routerLink="/add-boarding-house" routerLinkActive="active">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Add Boarding House
-      </a>
-      <a routerLink="/owner-profile" routerLinkActive="active">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
-        Owner Profile
-      </a>
-    </nav>
+  <p *ngIf="isLoadingSummary" role="status" class="notice">Loading your boarding-house summary...</p>
+  <p *ngIf="summaryError" role="alert" class="notice notice-error">{{ summaryError }}</p>
 
-    <div class="user">
-      <span class="avatar" aria-hidden="true">{{ ownerName ? ownerName.charAt(0).toUpperCase() : 'O' }}</span>
-      <div class="user-info">
-        <strong>{{ ownerName || 'Owner' }}</strong>
-        <span *ngIf="ownerEmail">{{ ownerEmail }}</span>
-        <span class="role" *ngIf="ownerRole">{{ ownerRole }}</span>
-      </div>
-    </div>
-  </aside>
-
-  <main class="content">
-    <header class="page-header">
-      <div>
-        <h1>Welcome back{{ ownerName ? ', ' + ownerName : '' }}</h1>
-        <p>Here is how your boarding houses are doing today.</p>
-      </div>
-      <button type="button" class="btn-logout" (click)="logout()" [disabled]="isLoggingOut">
-        {{ isLoggingOut ? 'Signing out...' : 'Log out' }}
-      </button>
-    </header>
-
-    <section aria-labelledby="summary-heading">
-      <h2 id="summary-heading" class="section-title">Summary</h2>
-
-      <p *ngIf="isLoadingSummary" role="status" class="notice">Loading your boarding-house summary...</p>
-      <p *ngIf="summaryError" role="alert" class="notice notice-error">{{ summaryError }}</p>
-
-      <div class="summary-grid">
+  <div class="summary-grid">
         <article class="card">
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/></svg>
@@ -86,17 +42,21 @@
 
         <article class="card">
           <span class="icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <svg viewBox="0 0 24 24">
+              <path d="m3 11 9-7 9 7M5 10v10h8"/>
+              <circle cx="18" cy="17" r="4"/>
+              <path d="M18 15v2l1.5 1"/>
+            </svg>
           </span>
-          <h3>Pending tasks</h3>
-          <p class="value" [class.empty]="pendingTasks === null">
-            {{ pendingTasks === null ? 'Not available yet' : pendingTasks }}
+          <h3>Pending boarding houses</h3>
+          <p class="value" [class.empty]="pendingBoardingHouses === null">
+            {{ pendingBoardingHouses === null ? 'Not available yet' : pendingBoardingHouses }}
           </p>
         </article>
-      </div>
+  </div>
 
       <!-- Occupancy bar: only shows when both room numbers exist -->
-      <div class="occupancy card" *ngIf="availableRooms !== null && occupiedRooms !== null && (availableRooms + occupiedRooms) > 0">
+  <div class="occupancy card" *ngIf="availableRooms !== null && occupiedRooms !== null && (availableRooms + occupiedRooms) > 0">
         <div class="occupancy-head">
           <h3>Room occupancy</h3>
           <strong>{{ (occupiedRooms / (availableRooms + occupiedRooms)) * 100 | number:'1.0-0' }}% occupied</strong>
@@ -109,17 +69,12 @@
           <span><i class="dot dot-occupied"></i>Occupied ({{ occupiedRooms }})</span>
           <span><i class="dot dot-available"></i>Available ({{ availableRooms }})</span>
         </div>
-      </div>
+  </div>
 
-      <div class="hints">
+  <div class="hints">
         <p *ngIf="!isLoadingSummary && totalBoardingHouses !== null &&
             (availableRooms === null || occupiedRooms === null)">
           Room totals are shown only when the API returns every boarding house.
         </p>
-        <p *ngIf="pendingTasks === null">
-          Pending tasks are unavailable because the system does not yet define a pending-activity metric.
-        </p>
-      </div>
-    </section>
-  </main>
-</div>
+  </div>
+</section>

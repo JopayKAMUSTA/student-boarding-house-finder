@@ -26,14 +26,29 @@
 
     <div>
       <label for="password">Password</label>
-      <input
-        type="password"
-        id="password"
-        name="password"
-        placeholder="type your password"
-        ngModel
-        required
-      />
+      <div class="password-input-wrap">
+        <input
+          [type]="showPassword ? 'text' : 'password'"
+          id="password"
+          name="password"
+          placeholder="type your password"
+          ngModel
+          required
+        />
+        <button
+          type="button"
+          class="password-toggle"
+          (click)="showPassword = !showPassword"
+          [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+          [attr.aria-pressed]="showPassword"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/>
+            <circle cx="12" cy="12" r="2.8"/>
+            <path *ngIf="!showPassword" d="m4 4 16 16"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <button type="submit" [disabled]="isSubmitting">

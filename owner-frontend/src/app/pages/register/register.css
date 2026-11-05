@@ -5,7 +5,7 @@
   align-items: center;
   padding: 50px 20px;
   background: #f8fafc;
-  font-family: Arial, sans-serif;
+  font-family: inherit;
 }
 
 .register-page h1 {
@@ -63,7 +63,7 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
-.register-page button {
+.register-page button[type="submit"] {
   grid-column: 1 / -1;
   padding: 13px;
   background: #2563eb;
@@ -76,13 +76,58 @@
   transition: 0.2s ease;
 }
 
-.register-page button:hover {
+.register-page button[type="submit"]:hover {
   background: #1e40af;
 }
 
-.register-page button:disabled {
+.register-page button[type="submit"]:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.password-input-wrap {
+  position: relative;
+}
+
+.register-page .password-input-wrap input {
+  padding-right: 3rem;
+}
+
+.register-page .password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.55rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.register-page .password-toggle:hover {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.register-page .password-toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.register-page .password-toggle svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .register-page a {

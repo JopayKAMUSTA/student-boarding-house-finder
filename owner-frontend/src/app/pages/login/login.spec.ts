@@ -24,4 +24,21 @@ describe('Login', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('toggles password visibility without submitting the form', () => {
+    const toggle = fixture.nativeElement.querySelector('.password-toggle') as HTMLButtonElement;
+    const password = fixture.nativeElement.querySelector('#password') as HTMLInputElement;
+
+    expect(password.type).toBe('password');
+    toggle.click();
+    fixture.detectChanges();
+
+    expect(password.type).toBe('text');
+    expect(toggle.getAttribute('aria-label')).toBe('Hide password');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(password.type).toBe('password');
+  });
 });

@@ -19,6 +19,8 @@ export class Register {
   successMessage = '';
   errorMessage = '';
   isSubmitting = false;
+  showPassword = false;
+  showPasswordConfirmation = false;
 
   createAccount(form: NgForm) {
     this.successMessage = '';
