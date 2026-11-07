@@ -1,356 +1,291 @@
-<div class="boarding-houses-page">
-  <ng-container *ngIf="!detailMode; else detailsView">
-    <header class="page-header">
-      <div>
-        <h1>Boarding House Management</h1>
-        <p>Review submitted properties and manage listing approvals.</p>
-      </div>
-      <div class="total-card">
-        <span>Total Listings</span>
-        <strong>{{ total }}</strong>
-      </div>
-    </header>
 
-    <div *ngIf="successMessage" class="notice notice-success" role="status">
+<div class="page-container">
+
+  <div class="page-header">
+    <div>
+      <h1>Boarding Houses</h1>
+      <p>Review and manage boarding-house submissions.</p>
+    </div>
+
+    <button class="refresh-button" (click)="loadBoardingHouses()">
+      Refresh
+    </button>
+  </div>
+
+  @if (successMessage) {
+    <div class="alert success-alert">
       {{ successMessage }}
     </div>
-    <div *ngIf="errorMessage" class="notice notice-error" role="alert">
+  }
+
+  @if (errorMessage) {
+    <div class="alert error-alert">
       {{ errorMessage }}
-      <button
-        *ngIf="!isLoading"
-        type="button"
-        class="retry-button"
-        (click)="loadBoardingHouses(currentPage)"
-      >
-        Try again
-      </button>
     </div>
+  }
 
-    <section class="list-card" aria-label="Boarding house submissions">
-      <div class="toolbar">
-        <label for="status-filter">Filter by status</label>
-        <select
-          id="status-filter"
-          [value]="statusFilter"
-          (change)="onStatusFilterChange($event)"
-        >
-          <option *ngFor="let status of statuses" [value]="status.value">
-            {{ status.label }}
-          </option>
-        </select>
-      </div>
+  <div class="status-tabs">
+    <button
+      [class.active]="activeStatus === 'pending'"
+      (click)="changeStatus('pending')">
+      Pending
+    </button>
 
-      <div *ngIf="isLoading" class="state-message" role="status">
-        Loading boarding houses...
-      </div>
+    <button
+      [class.active]="activeStatus === 'approved'"
+      (click)="changeStatus('approved')">
+      Approved
+    </button>
 
-      <div class="table-wrapper" *ngIf="!isLoading && !errorMessage">
-        <table>
-          <thead>
+    <button
+      [class.active]="activeStatus === 'rejected'"
+      (click)="changeStatus('rejected')">
+      Rejected
+    </button>
+  </div>
+
+  <div class="list-summary">
+    <div>
+      <h2>{{ getStatusLabel(activeStatus) }} Submissions</h2>
+      <p>{{ totalItems }} boarding house(s) found</p>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="loading-state">
+      Loading boarding houses...
+    </div>
+  } @else if (boardingHouses.length === 0) {
+    <div class="empty-state">
+      <h3>No {{ activeStatus }} submissions</h3>
+      <p>There are currently no boarding houses in this category.</p>
+    </div>
+  } @else {
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Boarding House</th>
+            <th>Owner</th>
+            <th>Location</th>
+            <th>Monthly Rent</th>
+            <th>Status</th>
+            <th>Submitted</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (house of boardingHouses; track house.id) {
             <tr>
-              <th>Property</th>
-              <th>Owner</th>
-              <th>Location</th>
-              <th>Monthly Rent</th>
-              <th>Submitted</th>
-              <th>Status</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let house of boardingHouses">
-              <td class="property-name">
-                <strong>{{ house.name }}</strong>
-                <small>#{{ house.id }}</small>
-              </td>
               <td>
-                <span class="owner-name">{{ ownerName(house) }}</span>
-                <small class="secondary-text">{{ house.owner.email }}</small>
+                <div class="house-name">{{ house.name }}</div>
+                <div class="secondary-text">ID: {{ house.id }}</div>
               </td>
+
               <td>
-                {{ house.barangay ? house.barangay + ', ' : '' }}{{ house.city }}
+                <div>{{ house.owner?.name || 'Unknown owner' }}</div>
+                <div class="secondary-text">
+                  {{ house.owner?.email || 'No email' }}
+                </div>
               </td>
-              <td>{{ house.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}</td>
-              <td>{{ house.created_at | date:'MMM d, y' }}</td>
+
+              <td>
+                <div>{{ house.barangay }}, {{ house.city }}</div>
+                <div class="secondary-text">{{ house.address }}</div>
+              </td>
+
+              <td class="rent">
+                {{ house.monthly_rent | currency:'PHP':'symbol':'1.2-2' }}
+              </td>
+
               <td>
                 <span class="status-badge" [ngClass]="house.status">
-                  {{ formatStatus(house.status) }}
+                  {{ getStatusLabel(house.status) }}
                 </span>
               </td>
+
               <td>
-                <button type="button" class="view-button" (click)="viewDetails(house)">
-                  View Details
-                </button>
+                {{ house.created_at | date:'mediumDate' }}
+              </td>
+
+              <td>
+                <div class="action-buttons">
+                  <button
+                    class="details-button"
+                    (click)="viewDetails(house.id)">
+                    View
+                  </button>
+
+                  @if (house.status === 'pending') {
+                    <button
+                      class="approve-button"
+                      [disabled]="actionLoadingId === house.id"
+                      (click)="approveHouse(house)">
+                      {{ actionLoadingId === house.id ? 'Processing...' : 'Approve' }}
+                    </button>
+
+                    <button
+                      class="reject-button"
+                      [disabled]="actionLoadingId === house.id"
+                      (click)="rejectHouse(house)">
+                      Reject
+                    </button>
+                  }
+                </div>
               </td>
             </tr>
-            <tr *ngIf="boardingHouses.length === 0">
-              <td colspan="7" class="empty-state">
-                No boarding houses match this status.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <footer class="pagination" *ngIf="!isLoading && !errorMessage && total > 0">
-        <span>Page {{ currentPage }} of {{ lastPage }} · {{ total }} listings</span>
-        <div class="pagination-actions">
-          <button
-            type="button"
-            [disabled]="currentPage <= 1"
-            (click)="changePage(currentPage - 1)"
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            [disabled]="currentPage >= lastPage"
-            (click)="changePage(currentPage + 1)"
-          >
-            Next
-          </button>
-        </div>
-      </footer>
-    </section>
-  </ng-container>
-
-  <ng-template #detailsView>
-    <button type="button" class="back-button" (click)="backToList()">
-      <span aria-hidden="true">←</span> Back to boarding houses
-    </button>
-    <div *ngIf="!selectedBoardingHouse && isDetailLoading" class="state-message detail-loading" role="status">
-      Loading listing details...
+          }
+        </tbody>
+      </table>
     </div>
-    <div *ngIf="!selectedBoardingHouse && errorMessage" class="notice notice-error" role="alert">
-      {{ errorMessage }}
-      <button
-        *ngIf="!isDetailLoading"
-        type="button"
-        class="retry-button"
-        (click)="retryDetails()"
-      >
-        Try again
-      </button>
-    </div>
-    <ng-container *ngIf="selectedBoardingHouse as house">
-      <header class="detail-header">
-        <div>
-          <p class="eyebrow">LISTING #{{ house.id }}</p>
-          <h1>{{ house.name }}</h1>
-          <p>{{ house.barangay ? house.barangay + ', ' : '' }}{{ house.city }}</p>
-        </div>
-        <div class="detail-status">
-          <span class="status-badge" [ngClass]="house.status">
-            {{ formatStatus(house.status) }}
-          </span>
-          <div class="decision-actions" *ngIf="house.status === 'pending'">
-            <button
-              type="button"
-              class="approve-button"
-              [disabled]="actionLoadingId !== null"
-              (click)="decideStatus(house, 'approved')"
-            >
-              {{ actionLoadingId === house.id ? 'Saving...' : 'Approve' }}
-            </button>
-            <button
-              type="button"
-              class="reject-button"
-              [disabled]="actionLoadingId !== null"
-              (click)="decideStatus(house, 'rejected')"
-            >
-              Reject
-            </button>
-          </div>
-        </div>
-      </header>
+  }
 
-      <div *ngIf="successMessage" class="notice notice-success" role="status">
-        {{ successMessage }}
-      </div>
-      <div *ngIf="errorMessage" class="notice notice-error" role="alert">
-        {{ errorMessage }}
-        <button
-          *ngIf="!isDetailLoading"
-          type="button"
-          class="retry-button"
-          (click)="loadDetails(house.id)"
-        >
-          Try again
-        </button>
-      </div>
-
-      <div *ngIf="isDetailLoading" class="state-message detail-loading" role="status">
-        Loading listing details...
-      </div>
-
-      <ng-container *ngIf="!isDetailLoading">
-        <section class="detail-card">
-          <div class="section-heading">
-            <div>
-              <h2>Property information</h2>
-              <p>Listing description, location, and pricing</p>
-            </div>
-          </div>
-          <p class="description">{{ house.description || 'No description provided.' }}</p>
-          <dl class="detail-grid">
-            <div>
-              <dt>Complete Address</dt>
-              <dd>{{ house.address }}</dd>
-            </div>
-            <div>
-              <dt>Barangay</dt>
-              <dd>{{ house.barangay || 'Not provided' }}</dd>
-            </div>
-            <div>
-              <dt>City</dt>
-              <dd>{{ house.city }}</dd>
-            </div>
-            <div>
-              <dt>Monthly Rent</dt>
-              <dd>{{ house.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}</dd>
-            </div>
-            <div>
-              <dt>Security Deposit</dt>
-              <dd>{{ house.security_deposit | currency:'PHP':'symbol':'1.0-2' }}</dd>
-            </div>
-            <div>
-              <dt>Advance Payment</dt>
-              <dd>{{ house.advance_payment | currency:'PHP':'symbol':'1.0-2' }}</dd>
-            </div>
-            <div>
-              <dt>Total Rooms</dt>
-              <dd>{{ house.total_rooms }}</dd>
-            </div>
-            <div>
-              <dt>Available Rooms</dt>
-              <dd>{{ house.available_rooms }}</dd>
-            </div>
-            <div>
-              <dt>Property Room Type</dt>
-              <dd>{{ house.room_type || 'Not specified' }}</dd>
-            </div>
-            <div>
-              <dt>Submitted</dt>
-              <dd>{{ house.created_at | date:'MMMM d, y, h:mm a' }}</dd>
-            </div>
-          </dl>
-
-          <div class="amenities-section">
-            <h3>Property amenities</h3>
-            <ul class="amenity-list" *ngIf="house.amenities?.length; else noPropertyAmenities">
-              <li *ngFor="let amenity of house.amenities">{{ amenity }}</li>
-            </ul>
-            <ng-template #noPropertyAmenities>
-              <p class="muted-text">No property amenities listed.</p>
-            </ng-template>
-          </div>
-        </section>
-
-        <section class="detail-card owner-card">
-          <div class="section-heading">
-            <div>
-              <h2>Owner information</h2>
-              <p>Account details associated with this submission</p>
-            </div>
-          </div>
-          <dl class="detail-grid">
-            <div>
-              <dt>Owner Name</dt>
-              <dd>{{ ownerName(house) }}</dd>
-            </div>
-            <div>
-              <dt>Email</dt>
-              <dd>{{ house.owner.email || 'Not provided' }}</dd>
-            </div>
-            <div>
-              <dt>Contact Number</dt>
-              <dd>{{ house.owner.owner_profile?.contact_number || 'Not provided' }}</dd>
-            </div>
-            <div>
-              <dt>Business Name</dt>
-              <dd>{{ house.owner.owner_profile?.business_name || 'Not provided' }}</dd>
-            </div>
-            <div class="wide-detail">
-              <dt>Business Address</dt>
-              <dd>{{ house.owner.owner_profile?.business_address || 'Not provided' }}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section class="detail-card rooms-card">
-          <div class="section-heading">
-            <div>
-              <h2>Rooms and photos</h2>
-              <p>{{ house.rooms?.length || 0 }} room{{ house.rooms?.length === 1 ? '' : 's' }} in this listing</p>
-            </div>
-          </div>
-
-          <div *ngIf="!house.rooms?.length" class="empty-state room-empty">
-            No room details have been added to this listing.
-          </div>
-
-          <article class="room-card" *ngFor="let room of house.rooms">
-            <header class="room-header">
-              <div>
-                <h3>Room {{ room.room_number }}</h3>
-                <p>{{ room.room_type }}</p>
-              </div>
-              <span class="status-badge" [ngClass]="room.availability_status">
-                {{ room.availability_status | titlecase }}
-              </span>
-            </header>
-
-            <p *ngIf="room.description" class="room-description">{{ room.description }}</p>
-            <dl class="room-details-grid">
-              <div>
-                <dt>Price</dt>
-                <dd>{{ room.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}</dd>
-              </div>
-              <div>
-                <dt>Pricing Basis</dt>
-                <dd>{{ formatLabel(room.pricing_basis) }}</dd>
-              </div>
-              <div>
-                <dt>Maximum Occupants</dt>
-                <dd>{{ room.max_occupants }}</dd>
-              </div>
-            </dl>
-
-            <div class="room-amenities">
-              <h4>Room amenities</h4>
-              <ul class="amenity-list" *ngIf="room.amenities?.length; else noRoomAmenities">
-                <li *ngFor="let amenity of room.amenities">{{ amenity }}</li>
-              </ul>
-              <ng-template #noRoomAmenities>
-                <p class="muted-text">No room amenities listed.</p>
-              </ng-template>
-            </div>
-
-            <div class="room-images">
-              <h4>Room photos</h4>
-              <div *ngIf="!room.images.length" class="muted-text">No photos uploaded.</div>
-              <div class="image-grid" *ngIf="room.images.length">
-                <figure class="image-item" *ngFor="let image of room.images">
-                  <div class="image-preview">
-                    <span *ngIf="imageLoading.has(image.id)" class="image-state" role="status">
-                      Loading photo...
-                    </span>
-                    <span *ngIf="imageErrors.has(image.id)" class="image-state image-error" role="alert">
-                      {{ imageErrors.get(image.id) }}
-                    </span>
-                    <img
-                      *ngIf="imageUrls.get(image.id) as previewUrl"
-                      [src]="previewUrl"
-                      [alt]="'Photo of room ' + room.room_number"
-                    />
-                  </div>
-                  <figcaption>Photo {{ image.id }}</figcaption>
-                </figure>
-              </div>
-            </div>
-          </article>
-        </section>
-      </ng-container>
-    </ng-container>
-  </ng-template>
 </div>
+
+@if (loadingDetails) {
+  <div class="modal-backdrop">
+    <div class="modal loading-modal">
+      Loading boarding-house details...
+    </div>
+  </div>
+}
+
+@if (selectedHouse; as house) {
+  <div class="modal-backdrop" (click)="closeDetails()">
+    <div class="modal" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <div>
+          <h2>{{ house.name }}</h2>
+          <p>Boarding House ID: {{ house.id }}</p>
+        </div>
+
+        <button class="close-button" (click)="closeDetails()">×</button>
+      </div>
+
+      <div class="modal-content">
+
+        <section>
+          <h3>Property Information</h3>
+
+          <div class="detail-grid">
+            <div>
+              <label>Description</label>
+              <p>{{ house.description || 'No description provided' }}</p>
+            </div>
+
+            <div>
+              <label>Location</label>
+              <p>{{ house.address }}, {{ house.barangay }}, {{ house.city }}</p>
+            </div>
+
+            <div>
+              <label>Room Type</label>
+              <p>{{ house.room_type }}</p>
+            </div>
+
+            <div>
+              <label>Available Rooms</label>
+              <p>{{ house.available_rooms }} / {{ house.total_rooms }}</p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h3>Rental Information</h3>
+
+          <div class="detail-grid">
+            <div>
+              <label>Monthly Rent</label>
+              <p>{{ house.monthly_rent | currency:'PHP':'symbol':'1.2-2' }}</p>
+            </div>
+
+            <div>
+              <label>Security Deposit</label>
+              <p>{{ house.security_deposit | currency:'PHP':'symbol':'1.2-2' }}</p>
+            </div>
+
+            <div>
+              <label>Advance Payment</label>
+              <p>{{ house.advance_payment | currency:'PHP':'symbol':'1.2-2' }}</p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h3>Amenities</h3>
+
+          @if (house.amenities?.length) {
+            <div class="amenities-list">
+              @for (amenity of house.amenities; track amenity) {
+                <span>{{ amenity }}</span>
+              }
+            </div>
+          } @else {
+            <p>No amenities provided.</p>
+          }
+        </section>
+
+        <section>
+          <h3>Owner Information</h3>
+
+          <div class="detail-grid">
+            <div>
+              <label>Owner Name</label>
+              <p>{{ house.owner?.name || 'Unknown owner' }}</p>
+            </div>
+
+            <div>
+              <label>Email Address</label>
+              <p>{{ house.owner?.email || 'No email provided' }}</p>
+            </div>
+
+            <div>
+              <label>Owner ID</label>
+              <p>{{ house.owner_id }}</p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h3>Submission Information</h3>
+
+          <div class="detail-grid">
+            <div>
+              <label>Status</label>
+              <span class="status-badge" [ngClass]="house.status">
+                {{ getStatusLabel(house.status) }}
+              </span>
+            </div>
+
+            <div>
+              <label>Date Submitted</label>
+              <p>{{ house.created_at | date:'medium' }}</p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      @if (house.status === 'pending') {
+        <div class="modal-footer">
+          <button
+            class="reject-button"
+            [disabled]="actionLoadingId === house.id"
+            (click)="rejectHouse(house)">
+            Reject Submission
+          </button>
+
+          <button
+            class="approve-button"
+            [disabled]="actionLoadingId === house.id"
+            (click)="approveHouse(house)">
+            Approve Submission
+          </button>
+        </div>
+      }
+
+    </div>
+  </div>
+}
