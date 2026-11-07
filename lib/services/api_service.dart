@@ -5,8 +5,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/material.dart';
 
 class ApiService {
-  // Replace this IP if your computer's local IP has changed.
-  static const String baseUrl = 'http://192.168.100.28:8000/api';
+
+ static const String baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://192.168.1.120:8000/api',
+);
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
