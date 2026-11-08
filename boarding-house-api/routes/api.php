@@ -14,6 +14,7 @@ use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AdminBoardinghouseController;
 use App\Http\Controllers\AdminOwnerController;
 use App\Http\Controllers\OwnerBoardingHouseRoomController;
+use App\Http\Controllers\OwnerRentalBillController;
 use App\Http\Controllers\OwnerTenantController;
 
 
@@ -421,6 +422,20 @@ Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
     Route::post('/tenants/{tenant}/assignments', [OwnerTenantController::class, 'assign']);
     Route::post('/tenants/{tenant}/transfer', [OwnerTenantController::class, 'transfer']);
     Route::patch('/tenants/{tenant}/move-out', [OwnerTenantController::class, 'moveOut']);
+    Route::get('/rental-bills', [OwnerRentalBillController::class, 'index']);
+    Route::post('/tenants/{tenant}/rental-bills', [
+        OwnerRentalBillController::class,
+        'store',
+    ]);
+    Route::get('/rental-bills/{bill}', [OwnerRentalBillController::class, 'show']);
+    Route::post('/rental-bills/{bill}/payments', [
+        OwnerRentalBillController::class,
+        'recordPayment',
+    ]);
+    Route::patch('/rental-payments/{payment}/void', [
+        OwnerRentalBillController::class,
+        'voidPayment',
+    ]);
 
     Route::get('/boarding-houses/{boardingHouse}/rooms', [
         OwnerBoardingHouseRoomController::class,

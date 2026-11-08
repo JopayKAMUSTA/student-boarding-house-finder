@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BoardinghouseRoom;
+use App\Models\RoomAssignment;
 use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -225,10 +226,12 @@ class OwnerTenantController extends Controller
             $this->ensureApprovedBoardingHouse($destination);
             $this->ensureAssignable($destination);
 
-            $current->update([
-                'status' => 'moved_out',
-                'move_out_date' => $validated['move_in_date'],
-            ]);
+            DB::table('room_assignments')
+                ->where('id', $current->id)
+                ->update([
+                    'status' => 'moved_out',
+                    'move_out_date' => $validated['move_in_date'],
+                ]);
 
             $newAssignment = $lockedTenant->assignments()->create([
                 'boarding_house_room_id' => $destination->id,
@@ -256,6 +259,7 @@ class OwnerTenantController extends Controller
 
         $assignment = DB::transaction(function () use ($request, $tenant) {
             $lockedTenant = $this->lockOwnedTenant($request, $tenant);
+            /** @var RoomAssignment|null $assignment */
             $assignment = $lockedTenant->assignments()
                 ->where('status', 'active')
                 ->lockForUpdate()
@@ -268,10 +272,13 @@ class OwnerTenantController extends Controller
             }
 
             $room = $this->lockRoom((int) $assignment->boarding_house_room_id);
-            $assignment->update([
-                'status' => 'moved_out',
-                'move_out_date' => now()->toDateString(),
-            ]);
+            DB::table('room_assignments')
+                ->where('id', $assignment->id)
+                ->update([
+                    'status' => 'moved_out',
+                    'move_out_date' => now()->toDateString(),
+                ]);
+            $assignment->refresh();
             $this->syncRoomAvailability($room);
 
             return $assignment;

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { EMPTY, Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 import { ManagedRoomInfo, OwnerAuth } from '../../services/owner-auth';
 import { RoomManagement } from './room-management';
 
@@ -56,7 +56,7 @@ describe('RoomManagement', () => {
           useValue: {
             getToken: () => 'owner-token',
             getOwnerRooms: () => of(response),
-            getOwnerRoomImage: () => EMPTY,
+            getOwnerRoomImage: () => of(new Blob(['photo'])),
             deleteOwnerRoom: () => deleteResponse()
           }
         }
@@ -92,13 +92,19 @@ describe('RoomManagement', () => {
     response.data.total = 1;
     fixture.detectChanges();
     await fixture.whenStable();
-    component.imageUrls[4] = 'blob:room-image';
-    expect(component.imageUrls[4]).toBe('blob:room-image');
     expect(component.rooms[0].images).toHaveLength(1);
-    fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('201');
     expect(fixture.nativeElement.textContent).toContain('Single Room');
+    expect(fixture.nativeElement.textContent).toContain('View Details');
+    expect(fixture.nativeElement.textContent).toContain('Edit Room');
+    const roomLinks = Array.from(
+      fixture.nativeElement.querySelectorAll('.room-actions a') as NodeListOf<HTMLAnchorElement>
+    );
+    expect(roomLinks.map((link) => link.getAttribute('href'))).toContain(
+      '/owner/boarding-houses/42/rooms/9'
+    );
+    expect(roomLinks.map((link) => link.textContent?.trim())).toContain('View Details');
     expect(fixture.nativeElement.querySelector('img')).not.toBeNull();
   });
 

@@ -92,6 +92,10 @@
 
         <div class="room-actions">
           <a class="btn btn-outline"
+            [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', room.id]">
+            View Details
+          </a>
+          <a class="btn btn-outline"
             [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', room.id, 'edit']">
             Edit Room
           </a>

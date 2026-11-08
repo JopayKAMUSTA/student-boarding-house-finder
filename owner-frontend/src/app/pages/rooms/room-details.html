@@ -1,0 +1,140 @@
+<div class="room-details-page">
+  <a class="back-link" [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms']">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+    Back to Room Management
+  </a>
+
+  <p *ngIf="isLoading" role="status" class="notice">
+    <span class="spinner" aria-hidden="true"></span>
+    Loading room details...
+  </p>
+
+  <div *ngIf="errorMessage" role="alert" class="notice notice-error">
+    <p>{{ errorMessage }}</p>
+    <button type="button" class="btn btn-outline" (click)="loadRoom()" [disabled]="isLoading">
+      Try Again
+    </button>
+  </div>
+
+  <ng-container *ngIf="!isLoading && !errorMessage && room as room">
+    <header class="details-header">
+      <div>
+        <p class="eyebrow">ROOM DETAILS</p>
+        <h1>Room {{ room.room_number }}</h1>
+        <p class="subtitle">{{ room.room_type }}</p>
+      </div>
+      <a class="btn btn-primary"
+        [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', room.id, 'edit']">
+        Edit Room
+      </a>
+    </header>
+
+    <p *ngIf="photoError" role="status" class="notice notice-warn">{{ photoError }}</p>
+
+    <section class="panel" aria-labelledby="room-information-heading">
+      <h2 id="room-information-heading">Room information</h2>
+      <dl class="room-facts">
+        <div>
+          <dt>Room number</dt>
+          <dd>{{ room.room_number }}</dd>
+        </div>
+        <div>
+          <dt>Room type</dt>
+          <dd>{{ room.room_type }}</dd>
+        </div>
+        <div>
+          <dt>Monthly rent</dt>
+          <dd>{{ room.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}</dd>
+        </div>
+        <div>
+          <dt>Pricing basis</dt>
+          <dd>{{ formatPricingBasis(room.pricing_basis) }}</dd>
+        </div>
+        <div>
+          <dt>Availability</dt>
+          <dd>
+            <span class="badge" [attr.data-status]="formatAvailability(room.availability_status) | lowercase">
+              {{ formatAvailability(room.availability_status) | titlecase }}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt>Occupancy</dt>
+          <dd>{{ room.current_occupant_count ?? room.current_occupants?.length ?? 0 }}
+            / {{ room.max_occupants }}</dd>
+        </div>
+        <div class="description-fact" *ngIf="room.description">
+          <dt>Description</dt>
+          <dd>{{ room.description }}</dd>
+        </div>
+      </dl>
+
+      <div class="amenities-section">
+        <h3>Amenities</h3>
+        <ul class="amenities" *ngIf="room.amenities?.length">
+          <li *ngFor="let amenity of room.amenities">{{ amenity }}</li>
+        </ul>
+        <p *ngIf="!room.amenities?.length" class="muted-empty">No amenities listed.</p>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="room-photos-heading">
+      <h2 id="room-photos-heading">Room photos</h2>
+      <p *ngIf="!room.images?.length" class="muted-empty">No room photos uploaded.</p>
+      <div class="photo-grid" *ngIf="room.images?.length">
+        <figure *ngFor="let image of room.images; trackBy: trackImage">
+          <img *ngIf="imageUrls[image.id]" [src]="imageUrls[image.id]"
+            [alt]="'Photo of room ' + room.room_number" />
+          <span *ngIf="!imageUrls[image.id]" class="photo-loading" role="status">
+            Loading photo...
+          </span>
+        </figure>
+      </div>
+    </section>
+
+    <section class="panel occupants-panel" aria-labelledby="current-occupants-heading">
+      <div class="section-heading">
+        <div>
+          <h2 id="current-occupants-heading">Current Occupants</h2>
+          <p>{{ room.current_occupant_count ?? room.current_occupants?.length ?? 0 }}
+            / {{ room.max_occupants }} occupants</p>
+        </div>
+      </div>
+
+      <p *ngIf="!room.current_occupants?.length" class="occupants-empty">
+        No current occupants.
+      </p>
+
+      <div *ngIf="room.current_occupants?.length" class="occupants-list">
+        <article *ngFor="let occupant of room.current_occupants" class="occupant-card">
+          <div class="occupant-heading">
+            <h3>{{ occupant.full_name }}</h3>
+            <span class="occupant-status">{{ occupant.status | titlecase }}</span>
+          </div>
+          <dl class="occupant-facts">
+            <div>
+              <dt>Contact number</dt>
+              <dd>{{ occupant.contact_number }}</dd>
+            </div>
+            <div>
+              <dt>Move-in date</dt>
+              <dd>{{ occupant.move_in_date | date:'mediumDate' }}</dd>
+            </div>
+            <div>
+              <dt>Monthly rent</dt>
+              <dd>{{ occupant.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}</dd>
+            </div>
+          </dl>
+          <p *ngIf="occupant.emergency_contact_name || occupant.emergency_contact_number"
+            class="emergency-contact">
+            Emergency contact:
+            {{ occupant.emergency_contact_name || 'Name not provided' }}
+            <span *ngIf="occupant.emergency_contact_number">
+              · {{ occupant.emergency_contact_number }}
+            </span>
+          </p>
+        </article>
+      </div>
+    </section>
+  </ng-container>
+</div>

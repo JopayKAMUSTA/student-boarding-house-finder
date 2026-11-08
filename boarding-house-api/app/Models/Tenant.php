@@ -7,6 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * @property int $id
+ * @property int $owner_id
+ * @property int|null $user_id
+ * @property string $full_name
+ * @property string $contact_number
+ */
 class Tenant extends Model
 {
     protected $fillable = [

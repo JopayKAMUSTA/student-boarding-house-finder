@@ -230,8 +230,8 @@ a:focus-visible, button:focus-visible {
   .room-page-header { flex-direction: column; }
   .room-card { grid-template-columns: 1fr; gap: 16px; }
   .room-photo { aspect-ratio: 16 / 9; }
-  .room-actions { flex-direction: row; min-width: 0; }
-  .room-actions > * { flex: 1; }
+  .room-actions { flex-direction: row; flex-wrap: wrap; min-width: 0; }
+  .room-actions > * { flex: 1 1 130px; }
 }
 
 @media (min-width: 761px) and (max-width: 1060px) {

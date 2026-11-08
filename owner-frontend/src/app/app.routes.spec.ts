@@ -3,8 +3,11 @@ import { AddBoardingHouse } from './pages/add-boarding-house/add-boarding-house'
 import { Dashboard } from './pages/dashboard/dashboard';
 import { OwnerProfile } from './pages/owner-profile/owner-profile';
 import { RoomForm } from './pages/rooms/room-form';
+import { RoomDetails } from './pages/rooms/room-details';
 import { RoomManagement } from './pages/rooms/room-management';
+import { TenantManagement } from './pages/tenants/tenant-management';
 import { OwnerLayout } from './layouts/owner-layout';
+import { ownerAuthGuard } from './guards/owner-auth.guard';
 import { routes } from './app.routes';
 
 describe('owner routes', () => {
@@ -27,10 +30,23 @@ describe('owner routes', () => {
     expect(editRoom?.component).toBe(RoomForm);
   });
 
+  it('routes room details to the read-only RoomDetails page', () => {
+    expect(ownerRoutes.find((route) =>
+      route.path === 'owner/boarding-houses/:boardingHouseId/rooms/:roomId'
+    )?.component).toBe(RoomDetails);
+  });
+
   it('keeps the room-list route on RoomManagement', () => {
     expect(ownerRoutes.find((route) =>
       route.path === 'owner/boarding-houses/:boardingHouseId/rooms'
     )?.component).toBe(RoomManagement);
+  });
+
+  it('protects tenant management inside the shared owner layout', () => {
+    expect(ownerRoutes.find((route) => route.path === 'owner/tenants')?.component)
+      .toBe(TenantManagement);
+    expect(routes.find((route) => route.component === OwnerLayout)?.canActivate)
+      .toContain(ownerAuthGuard);
   });
 
   it('keeps the other owner pages inside the shared layout', () => {

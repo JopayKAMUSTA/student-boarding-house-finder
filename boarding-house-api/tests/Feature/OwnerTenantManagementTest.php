@@ -173,6 +173,121 @@ class OwnerTenantManagementTest extends TestCase
         ]);
     }
 
+    public function test_room_details_returns_empty_current_occupants_for_unassigned_room(): void
+    {
+        $owner = $this->createOwner();
+        $house = $this->createBoardingHouse($owner);
+        $room = $this->createRoom($house);
+        Sanctum::actingAs($owner);
+
+        $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_occupant_count', 0)
+            ->assertJsonPath('data.max_occupants', $room->max_occupants)
+            ->assertJsonCount(0, 'data.current_occupants');
+    }
+
+    public function test_room_details_returns_current_active_occupant_information(): void
+    {
+        $owner = $this->createOwner();
+        $house = $this->createBoardingHouse($owner);
+        $room = $this->createRoom($house);
+        $tenant = $this->createTenant($owner, [
+            'emergency_contact_name' => 'Maria Contact',
+            'emergency_contact_number' => '09170000000',
+        ]);
+        $this->createAssignment($tenant, $room);
+        Sanctum::actingAs($owner);
+
+        $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_occupant_count', 1)
+            ->assertJsonPath('data.max_occupants', $room->max_occupants)
+            ->assertJsonPath('data.current_occupants.0.tenant_id', $tenant->id)
+            ->assertJsonPath('data.current_occupants.0.full_name', $tenant->full_name)
+            ->assertJsonPath('data.current_occupants.0.contact_number', $tenant->contact_number)
+            ->assertJsonPath('data.current_occupants.0.emergency_contact_name', 'Maria Contact')
+            ->assertJsonPath('data.current_occupants.0.emergency_contact_number', '09170000000')
+            ->assertJsonPath('data.current_occupants.0.move_in_date', '2026-10-01')
+            ->assertJsonPath('data.current_occupants.0.monthly_rent', '5000.00')
+            ->assertJsonPath('data.current_occupants.0.status', 'active');
+    }
+
+    public function test_room_details_returns_multiple_occupants_for_shared_room(): void
+    {
+        $owner = $this->createOwner();
+        $house = $this->createBoardingHouse($owner);
+        $room = $this->createRoom($house, ['max_occupants' => 3]);
+        $firstTenant = $this->createTenant($owner, ['full_name' => 'First Tenant']);
+        $secondTenant = $this->createTenant($owner, ['full_name' => 'Second Tenant']);
+        $this->createAssignment($firstTenant, $room);
+        $this->createAssignment($secondTenant, $room);
+        Sanctum::actingAs($owner);
+
+        $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_occupant_count', 2)
+            ->assertJsonCount(2, 'data.current_occupants')
+            ->assertJsonPath('data.current_occupants.0.full_name', 'First Tenant')
+            ->assertJsonPath('data.current_occupants.1.full_name', 'Second Tenant');
+    }
+
+    public function test_room_details_excludes_moved_out_tenant_from_current_occupants(): void
+    {
+        $owner = $this->createOwner();
+        $house = $this->createBoardingHouse($owner);
+        $room = $this->createRoom($house);
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment($tenant, $room);
+        $assignment->update(['status' => 'moved_out', 'move_out_date' => '2026-11-01']);
+        Sanctum::actingAs($owner);
+
+        $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_occupant_count', 0)
+            ->assertJsonCount(0, 'data.current_occupants');
+    }
+
+    public function test_transferred_tenant_appears_only_in_destination_room_occupants(): void
+    {
+        $owner = $this->createOwner();
+        $house = $this->createBoardingHouse($owner);
+        $source = $this->createRoom($house);
+        $destination = $this->createRoom($house, ['room_number' => '102']);
+        $tenant = $this->createTenant($owner);
+        $this->createAssignment($tenant, $source);
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
+            'boarding_house_room_id' => $destination->id,
+            'move_in_date' => '2026-11-08',
+        ])->assertCreated();
+
+        $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$source->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_occupant_count', 0)
+            ->assertJsonCount(0, 'data.current_occupants');
+
+        $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$destination->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_occupant_count', 1)
+            ->assertJsonPath('data.current_occupants.0.tenant_id', $tenant->id)
+            ->assertJsonPath('data.current_occupants.0.status', 'active');
+    }
+
+    public function test_owner_cannot_access_another_owners_room_occupants(): void
+    {
+        $owner = $this->createOwner();
+        $otherOwner = $this->createOwner();
+        $house = $this->createBoardingHouse($otherOwner);
+        $room = $this->createRoom($house);
+        $this->createAssignment($this->createTenant($otherOwner), $room);
+        Sanctum::actingAs($owner);
+
+        $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
+            ->assertForbidden();
+    }
+
     public function test_assignment_is_rejected_when_room_capacity_is_full(): void
     {
         $owner = $this->createOwner();

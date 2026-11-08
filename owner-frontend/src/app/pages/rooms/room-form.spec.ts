@@ -152,4 +152,16 @@ describe('RoomForm', () => {
     expect(component.roomId).toBe(7);
     expect(component.formModel.room_number).toBe('201');
   });
+
+  it('keeps the edit page focused on room fields', () => {
+    routeParams = convertToParamMap({
+      boardingHouseId: '42',
+      roomId: '7'
+    });
+
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Current Occupants');
+    expect(fixture.nativeElement.textContent).toContain('Room Number');
+  });
 });

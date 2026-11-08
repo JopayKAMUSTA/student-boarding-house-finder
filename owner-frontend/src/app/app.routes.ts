@@ -10,7 +10,9 @@ import { Register } from './pages/register/register';
 import { ownerAuthGuard } from './guards/owner-auth.guard';
 import { RoomManagement } from './pages/rooms/room-management';
 import { RoomForm } from './pages/rooms/room-form';
+import { RoomDetails } from './pages/rooms/room-details';
 import { OwnerLayout } from './layouts/owner-layout';
+import { TenantManagement } from './pages/tenants/tenant-management';
 
 
 export const routes: Routes = [
@@ -29,6 +31,10 @@ export const routes: Routes = [
         component: RoomForm
       },
       {
+        path: 'owner/boarding-houses/:boardingHouseId/rooms/:roomId',
+        component: RoomDetails
+      },
+      {
         path: 'owner/boarding-houses/:boardingHouseId/rooms/:roomId/edit',
         component: RoomForm
       },
@@ -36,6 +42,7 @@ export const routes: Routes = [
         path: 'owner/boarding-houses/:boardingHouseId/rooms',
         component: RoomManagement
       },
+      { path: 'owner/tenants', component: TenantManagement },
       { path: 'owner-profile', component: OwnerProfile }
     ]
   },

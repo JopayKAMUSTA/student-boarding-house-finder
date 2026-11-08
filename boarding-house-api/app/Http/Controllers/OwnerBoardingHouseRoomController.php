@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Boardinghouse;
 use App\Models\BoardinghouseRoom;
 use App\Models\RoomImage;
+use App\Models\RoomAssignment;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -44,6 +46,27 @@ class OwnerBoardingHouseRoomController extends Controller
         BoardinghouseRoom $room
     ): JsonResponse {
         $this->authorizeRoom($request, $boardingHouse, $room);
+
+        $occupants = $room->assignments()
+            ->where('status', 'active')
+            ->whereHas(
+                'tenant',
+                fn (Builder $query) => $query->where('owner_id', $request->user()->id)
+            )
+            ->with('tenant:id,full_name,contact_number,emergency_contact_name,emergency_contact_number')
+            ->get()
+            ->map(fn (RoomAssignment $assignment) => [
+                'tenant_id' => $assignment->tenant->id,
+                'full_name' => $assignment->tenant->full_name,
+                'contact_number' => $assignment->tenant->contact_number,
+                'emergency_contact_name' => $assignment->tenant->emergency_contact_name,
+                'emergency_contact_number' => $assignment->tenant->emergency_contact_number,
+                'move_in_date' => $assignment->move_in_date?->toDateString(),
+                'monthly_rent' => $assignment->monthly_rent,
+                'status' => $assignment->status,
+            ]);
+        $room->setAttribute('current_occupants', $occupants);
+        $room->setAttribute('current_occupant_count', $occupants->count());
 
         return response()->json([
             'success' => true,

@@ -6,6 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property int $boarding_house_id
+ * @property string $availability_status
+ * @property int $max_occupants
+ * @property string $monthly_rent
+ */
 class BoardinghouseRoom extends Model
 {
     protected $table = 'boarding_house_rooms';
