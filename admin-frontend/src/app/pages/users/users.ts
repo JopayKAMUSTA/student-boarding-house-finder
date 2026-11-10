@@ -13,7 +13,9 @@ import { UserService } from '../../services/user';
   styleUrl: './users.css'
 })
 export class Users implements OnInit {
+
   private cdr = inject(ChangeDetectorRef);
+
   users: any[] = [];
 
   search = '';
@@ -37,6 +39,7 @@ export class Users implements OnInit {
     this.loadUsers();
   }
 
+  // Load users from Laravel API
   loadUsers(page: number = 1): void {
 
     this.loading = true;
@@ -48,23 +51,36 @@ export class Users implements OnInit {
       this.selectedStatus,
       page
     )
-.pipe(
-  finalize(() => {
-    this.loading = false;
-    this.cdr.detectChanges();
-  })
-)
+    .pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.detectChanges();
+      })
+    )
     .subscribe({
 
       next: (response) => {
 
-        if (response.success) {
-          this.users = response.data.data;
-          this.currentPage = response.data.current_page;
-          this.lastPage = response.data.last_page;
-          this.totalUsers = response.data.total;
+        if (response && response.success) {
+
+          const result = response.data;
+
+          // Support both direct array and paginated API responses
+          this.users = Array.isArray(result)
+            ? result
+            : (result?.data ?? []);
+
+          // Pagination information
+          this.currentPage = result?.current_page ?? 1;
+          this.lastPage = result?.last_page ?? 1;
+          this.totalUsers = result?.total ?? this.users.length;
+
         } else {
+
+          this.users = [];
+          this.totalUsers = 0;
           this.errorMessage = 'Unable to retrieve users.';
+
         }
 
       },
@@ -72,6 +88,9 @@ export class Users implements OnInit {
       error: (error) => {
 
         console.error('User loading error:', error);
+
+        this.users = [];
+        this.totalUsers = 0;
 
         this.errorMessage =
           error.error?.message ||
@@ -83,21 +102,28 @@ export class Users implements OnInit {
 
   }
 
+  // Search users
   searchUsers(): void {
     this.loadUsers(1);
   }
 
+  // Filter users by role or status
   filterUsers(): void {
     this.loadUsers(1);
   }
 
+  // Clear all filters
   clearFilters(): void {
+
     this.search = '';
     this.selectedRole = '';
     this.selectedStatus = '';
+
     this.loadUsers(1);
+
   }
 
+  // Change pagination page
   changePage(page: number): void {
 
     if (page < 1 || page > this.lastPage) {
@@ -108,20 +134,25 @@ export class Users implements OnInit {
 
   }
 
+  // Get first letter of user's name
   getUserInitial(name: string): string {
     return name ? name.charAt(0).toUpperCase() : '?';
   }
 
   // Open User Details Modal
   viewUser(user: any): void {
+
     this.selectedUser = user;
     this.showUserModal = true;
+
   }
 
   // Close User Details Modal
   closeUserModal(): void {
+
     this.selectedUser = null;
     this.showUserModal = false;
+
   }
 
 }

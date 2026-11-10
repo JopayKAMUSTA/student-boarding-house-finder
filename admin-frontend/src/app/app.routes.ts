@@ -6,6 +6,7 @@ import { Dashboard } from './pages/dashboard/dashboard';
 import { Login } from './pages/login/login';
 import { Users } from './pages/users/users';
 import { BoardingHouses } from './pages/boarding-houses/boarding-houses';
+import { OwnerManagement } from './pages/owner-management/owner-management';
 import { authGuard } from './guards/auth-guard';
 
 export const routes: Routes = [
@@ -38,6 +39,11 @@ export const routes: Routes = [
       },
 
       {
+        path: 'owners',
+        component: OwnerManagement
+      },
+
+      {
         path: 'boarding-houses',
         component: BoardingHouses
       }
@@ -51,3 +57,4 @@ export const routes: Routes = [
   }
 
 ];
+

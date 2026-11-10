@@ -1,7 +1,19 @@
 
-import { Component, OnInit } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  ChangeDetectorRef
+} from '@angular/core';
+
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+
+import {
+  HttpClient,
+  HttpHeaders,
+  HttpParams
+} from '@angular/common/http';
+
+import { finalize } from 'rxjs/operators';
 import { AuthService } from '../../services/auth';
 
 interface BoardingHouse {
@@ -61,7 +73,8 @@ export class BoardingHouses implements OnInit {
 
   constructor(
     private http: HttpClient,
-    private authService: AuthService
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -79,26 +92,39 @@ export class BoardingHouses implements OnInit {
     this.loading = true;
     this.errorMessage = '';
 
+    this.cdr.detectChanges();
+
     const params = new HttpParams()
       .set('status', this.activeStatus);
 
     this.http.get<any>(this.apiUrl, {
       headers: this.getHeaders(),
       params
-    }).subscribe({
+    })
+    .pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.detectChanges();
+      })
+    )
+    .subscribe({
       next: (response) => {
         this.boardingHouses = response.data?.data ?? [];
-        this.totalItems = response.data?.total ?? this.boardingHouses.length;
-        this.loading = false;
+
+        this.totalItems =
+          response.data?.total ?? this.boardingHouses.length;
+
+        this.cdr.detectChanges();
       },
       error: (error) => {
-        this.loading = false;
         this.boardingHouses = [];
         this.totalItems = 0;
 
         this.errorMessage =
           error.error?.message ||
           'Unable to load boarding houses. Please check your API connection.';
+
+        this.cdr.detectChanges();
       }
     });
   }
@@ -117,17 +143,27 @@ export class BoardingHouses implements OnInit {
     this.selectedHouse = null;
     this.errorMessage = '';
 
+    this.cdr.detectChanges();
+
     this.http.get<any>(`${this.apiUrl}/${id}`, {
       headers: this.getHeaders()
-    }).subscribe({
+    })
+    .pipe(
+      finalize(() => {
+        this.loadingDetails = false;
+        this.cdr.detectChanges();
+      })
+    )
+    .subscribe({
       next: (response) => {
         this.selectedHouse = response.data;
-        this.loadingDetails = false;
+        this.cdr.detectChanges();
       },
       error: (error) => {
-        this.loadingDetails = false;
         this.errorMessage =
           error.error?.message || 'Unable to load boarding-house details.';
+
+        this.cdr.detectChanges();
       }
     });
   }
@@ -141,11 +177,9 @@ export class BoardingHouses implements OnInit {
       `Are you sure you want to approve "${house.name}"?`
     );
 
-    if (!confirmed) {
-      return;
+    if (confirmed) {
+      this.updateStatus(house, 'approved');
     }
-
-    this.updateStatus(house, 'approve');
   }
 
   rejectHouse(house: BoardingHouse): void {
@@ -153,44 +187,51 @@ export class BoardingHouses implements OnInit {
       `Are you sure you want to reject "${house.name}"?`
     );
 
-    if (!confirmed) {
-      return;
+    if (confirmed) {
+      this.updateStatus(house, 'rejected');
     }
-
-    this.updateStatus(house, 'reject');
   }
 
   private updateStatus(
     house: BoardingHouse,
-    action: 'approve' | 'reject'
+    status: 'approved' | 'rejected'
   ): void {
     this.actionLoadingId = house.id;
     this.successMessage = '';
     this.errorMessage = '';
 
+    this.cdr.detectChanges();
+
     this.http.patch<any>(
-      `${this.apiUrl}/${house.id}/${action}`,
-      {},
+      `${this.apiUrl}/${house.id}/status`,
+      { status },
       {
         headers: this.getHeaders()
       }
-    ).subscribe({
-      next: (response) => {
+    )
+    .pipe(
+      finalize(() => {
         this.actionLoadingId = null;
-
+        this.cdr.detectChanges();
+      })
+    )
+    .subscribe({
+      next: (response) => {
         this.successMessage =
           response.message ||
-          `Boarding house ${action}d successfully.`;
+          `Boarding house ${status} successfully.`;
 
         this.selectedHouse = null;
         this.loadBoardingHouses();
+
+        this.cdr.detectChanges();
       },
       error: (error) => {
-        this.actionLoadingId = null;
-
         this.errorMessage =
           error.error?.message ||
-          `Unable to ${action} this boarding house.`;
+          `Unable to ${status} this boarding house.`;
+
+        this.cdr.detectChanges();
       }
     });
   }
