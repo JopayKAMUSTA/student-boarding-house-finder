@@ -1,12 +1,19 @@
 
-import { Component, OnInit } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  ChangeDetectorRef
+} from '@angular/core';
+
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+
 import {
   HttpClient,
   HttpHeaders,
   HttpParams
 } from '@angular/common/http';
+
 import { finalize } from 'rxjs/operators';
 import { AuthService } from '../../services/auth';
 
@@ -70,7 +77,7 @@ interface Owner {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './owner-management.html',
-  styleUrl: './owner-management.css',
+  styleUrl: './owner-management.css'
 })
 export class OwnerManagement implements OnInit {
 
@@ -84,38 +91,34 @@ export class OwnerManagement implements OnInit {
   selectedOwner: Owner | null = null;
   selectedBoardingHouse: BoardingHouse | null = null;
 
-  // OWNER MODAL VISIBILITY
   showOwnerModal = false;
 
-  // LOADING STATES
   loading = false;
   loadingDetails = false;
   loadingBoardingHouse = false;
 
-  // PAGINATION
   totalOwners = 0;
   currentPage = 1;
   lastPage = 1;
 
-  // FILTERS
   search = '';
   selectedStatus = '';
   selectedVerification = '';
 
-  // UPDATE STATE
   updatingOwnerId: number | null = null;
 
-  // NOTIFICATIONS
   successMessage = '';
   errorMessage = '';
   boardingHouseError = '';
 
   constructor(
     private http: HttpClient,
-    private authService: AuthService
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    // Automatically load owners when this page opens.
     this.loadOwners();
   }
 
@@ -140,8 +143,14 @@ export class OwnerManagement implements OnInit {
 
   // LOAD OWNER LIST
   loadOwners(): void {
+    if (this.loading) {
+      return;
+    }
+
     this.loading = true;
     this.errorMessage = '';
+
+    this.cdr.detectChanges();
 
     let params = new HttpParams()
       .set('page', this.currentPage.toString());
@@ -167,18 +176,36 @@ export class OwnerManagement implements OnInit {
     }).pipe(
       finalize(() => {
         this.loading = false;
+        this.cdr.detectChanges();
       })
     ).subscribe({
+
       next: (response) => {
+        console.log('Owners API response:', response);
+
         const pagination = response?.data?.data
           ? response.data
           : response;
 
-        this.owners = pagination?.data ?? [];
-        this.totalOwners = pagination?.total ?? this.owners.length;
-        this.currentPage = pagination?.current_page ?? this.currentPage;
-        this.lastPage = pagination?.last_page ?? 1;
+        this.owners = Array.isArray(pagination?.data)
+          ? pagination.data
+          : [];
+
+        this.totalOwners =
+          pagination?.total ?? this.owners.length;
+
+        this.currentPage =
+          pagination?.current_page ?? this.currentPage;
+
+        this.lastPage =
+          pagination?.last_page ?? 1;
+
+        console.log('Loaded owners:', this.owners);
+
+        // Explicitly update the displayed owner list.
+        this.cdr.detectChanges();
       },
+
       error: (error) => {
         console.error('Error loading owners:', error);
 
@@ -186,8 +213,12 @@ export class OwnerManagement implements OnInit {
         this.totalOwners = 0;
 
         this.errorMessage =
-          error.error?.message || 'Failed to load owner accounts.';
+          error.error?.message ||
+          'Failed to load owner accounts.';
+
+        this.cdr.detectChanges();
       }
+
     });
   }
 
@@ -217,21 +248,22 @@ export class OwnerManagement implements OnInit {
   viewOwner(ownerId: number): void {
     console.log('Opening owner modal:', ownerId);
 
-    // Open modal immediately
     this.showOwnerModal = true;
-
-    // Reset previous owner details
     this.selectedOwner = null;
     this.loadingDetails = true;
     this.errorMessage = '';
+
+    this.cdr.detectChanges();
 
     this.http.get<any>(`${this.apiUrl}/${ownerId}`, {
       headers: this.getHeaders()
     }).pipe(
       finalize(() => {
         this.loadingDetails = false;
+        this.cdr.detectChanges();
       })
     ).subscribe({
+
       next: (response) => {
         console.log('Owner response:', response);
 
@@ -245,20 +277,24 @@ export class OwnerManagement implements OnInit {
         if (owner?.id) {
           this.selectedOwner = owner;
 
-          console.log(
-            'Owner details loaded:',
-            this.selectedOwner
-          );
+          console.log('Owner details loaded:', this.selectedOwner);
         } else {
           console.error('Invalid owner response:', response);
         }
+
+        this.cdr.detectChanges();
       },
+
       error: (error) => {
         console.error('Error loading owner details:', error);
 
         this.errorMessage =
-          error.error?.message || 'Failed to load owner details.';
+          error.error?.message ||
+          'Failed to load owner details.';
+
+        this.cdr.detectChanges();
       }
+
     });
   }
 
@@ -267,6 +303,8 @@ export class OwnerManagement implements OnInit {
     this.showOwnerModal = false;
     this.selectedOwner = null;
     this.loadingDetails = false;
+
+    this.cdr.detectChanges();
   }
 
   // OPEN BOARDING-HOUSE DETAILS
@@ -274,6 +312,8 @@ export class OwnerManagement implements OnInit {
     this.selectedBoardingHouse = house;
     this.loadingBoardingHouse = true;
     this.boardingHouseError = '';
+
+    this.cdr.detectChanges();
 
     this.http.get<any>(
       `${this.boardingHouseApiUrl}/${house.id}`,
@@ -283,8 +323,10 @@ export class OwnerManagement implements OnInit {
     ).pipe(
       finalize(() => {
         this.loadingBoardingHouse = false;
+        this.cdr.detectChanges();
       })
     ).subscribe({
+
       next: (response) => {
         this.selectedBoardingHouse =
           response?.data?.boarding_house ??
@@ -292,7 +334,10 @@ export class OwnerManagement implements OnInit {
           response?.boarding_house ??
           response?.house ??
           house;
+
+        this.cdr.detectChanges();
       },
+
       error: (error) => {
         console.error(
           'Error loading boarding-house details:',
@@ -304,7 +349,10 @@ export class OwnerManagement implements OnInit {
           'Could not load complete boarding-house details.';
 
         this.selectedBoardingHouse = house;
+
+        this.cdr.detectChanges();
       }
+
     });
   }
 
@@ -312,6 +360,8 @@ export class OwnerManagement implements OnInit {
   closeBoardingHouseDetails(): void {
     this.selectedBoardingHouse = null;
     this.boardingHouseError = '';
+
+    this.cdr.detectChanges();
   }
 
   // APPROVE OR REJECT OWNER VERIFICATION
@@ -337,6 +387,8 @@ export class OwnerManagement implements OnInit {
     this.successMessage = '';
     this.errorMessage = '';
 
+    this.cdr.detectChanges();
+
     this.http.patch<any>(
       `${this.apiUrl}/${owner.id}/verification`,
       {
@@ -348,8 +400,10 @@ export class OwnerManagement implements OnInit {
     ).pipe(
       finalize(() => {
         this.updatingOwnerId = null;
+        this.cdr.detectChanges();
       })
     ).subscribe({
+
       next: (response) => {
         this.updateOwnerLocally(owner.id, {
           verification_status: verificationStatus,
@@ -364,18 +418,26 @@ export class OwnerManagement implements OnInit {
 
         this.loadOwners();
 
-        // Keep the owner modal open and refresh its data
-        if (this.showOwnerModal && this.selectedOwner?.id === owner.id) {
+        if (
+          this.showOwnerModal &&
+          this.selectedOwner?.id === owner.id
+        ) {
           this.viewOwner(owner.id);
         }
+
+        this.cdr.detectChanges();
       },
+
       error: (error) => {
         console.error('Error updating verification:', error);
 
         this.errorMessage =
           error.error?.message ||
           'Failed to update owner verification.';
+
+        this.cdr.detectChanges();
       }
+
     });
   }
 
@@ -402,6 +464,8 @@ export class OwnerManagement implements OnInit {
     this.successMessage = '';
     this.errorMessage = '';
 
+    this.cdr.detectChanges();
+
     this.http.patch<any>(
       `${this.apiUrl}/${owner.id}/status`,
       { status },
@@ -409,8 +473,10 @@ export class OwnerManagement implements OnInit {
     ).pipe(
       finalize(() => {
         this.updatingOwnerId = null;
+        this.cdr.detectChanges();
       })
     ).subscribe({
+
       next: (response) => {
         this.updateOwnerLocally(owner.id, { status });
 
@@ -420,18 +486,26 @@ export class OwnerManagement implements OnInit {
 
         this.loadOwners();
 
-        // Keep the owner modal open and refresh its data
-        if (this.showOwnerModal && this.selectedOwner?.id === owner.id) {
+        if (
+          this.showOwnerModal &&
+          this.selectedOwner?.id === owner.id
+        ) {
           this.viewOwner(owner.id);
         }
+
+        this.cdr.detectChanges();
       },
+
       error: (error) => {
         console.error('Error updating owner status:', error);
 
         this.errorMessage =
           error.error?.message ||
           'Failed to update owner account status.';
+
+        this.cdr.detectChanges();
       }
+
     });
   }
 
@@ -468,5 +542,7 @@ export class OwnerManagement implements OnInit {
         this.selectedOwner = { ...updatedOwner };
       }
     }
+
+    this.cdr.detectChanges();
   }
 }

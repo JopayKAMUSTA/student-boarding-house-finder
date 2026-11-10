@@ -7,6 +7,7 @@ import { Login } from './pages/login/login';
 import { Users } from './pages/users/users';
 import { BoardingHouses } from './pages/boarding-houses/boarding-houses';
 import { OwnerManagement } from './pages/owner-management/owner-management';
+import { Reports } from './pages/reports/reports';
 import { authGuard } from './guards/auth-guard';
 
 export const routes: Routes = [
@@ -46,6 +47,11 @@ export const routes: Routes = [
       {
         path: 'boarding-houses',
         component: BoardingHouses
+      },
+
+      {
+        path: 'reports',
+        component: Reports
       }
 
     ]
@@ -57,4 +63,3 @@ export const routes: Routes = [
   }
 
 ];
-
