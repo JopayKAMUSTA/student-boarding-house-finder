@@ -175,20 +175,18 @@ button:focus-visible {
   }
 
   .nav {
-    flex-direction: row;
+    flex-flow: row wrap;
     gap: 5px;
-    overflow-x: auto;
+    overflow: visible;
     padding: 2px 0 5px;
-    scrollbar-width: thin;
   }
 
   .nav a,
   .nav-item {
     min-height: 38px;
-    flex: 0 0 auto;
+    flex: 1 1 145px;
     gap: 8px;
     padding: 7px 10px;
-    white-space: nowrap;
   }
 
   .nav svg { width: 17px; height: 17px; }

@@ -62,6 +62,88 @@
 
         <p class="meta" *ngIf="house.room_type">{{ house.room_type }}</p>
 
+        <section class="billing-policy" *ngIf="house.id" aria-label="Rental billing policy">
+          <div class="billing-policy-current">
+            <span>Current billing policy</span>
+            <strong>{{ billingPolicyLabel(currentBillingPolicy(house)) }}</strong>
+          </div>
+          <label [for]="'billing-policy-' + house.id">Change policy</label>
+          <select [id]="'billing-policy-' + house.id"
+            [name]="'billing-policy-' + house.id"
+            [ngModel]="billingPolicyDraft(house)"
+            (ngModelChange)="setBillingPolicyDraft(house, $event)"
+            [disabled]="billingPolicySaving[house.id]">
+            <option value="full_monthly">Full Monthly</option>
+            <option value="prorated">Prorated</option>
+          </select>
+          <p *ngIf="billingPolicySuccess[house.id]" role="status" class="policy-message policy-success">
+            {{ billingPolicySuccess[house.id] }}
+          </p>
+          <p *ngIf="billingPolicyErrors[house.id]" role="alert" class="policy-message policy-error">
+            {{ billingPolicyErrors[house.id] }}
+          </p>
+          <button type="button" class="btn btn-outline"
+            (click)="saveBillingPolicy(house)"
+            [disabled]="billingPolicySaving[house.id] ||
+              billingPolicyDraft(house) === currentBillingPolicy(house)">
+            {{ billingPolicySaving[house.id] ? 'Saving...' : 'Save Policy' }}
+          </button>
+        </section>
+
+        <section class="house-settings" *ngIf="house.id" aria-label="Late payment and house rules">
+          <h3>Daily late payment settings</h3>
+          <dl class="house-settings-current">
+            <div>
+              <dt>Daily late payment fee</dt>
+              <dd>{{ latePaymentFee(house) | currency:'PHP':'symbol':'1.2-2' }}/day</dd>
+            </div>
+            <div>
+              <dt>Grace period</dt>
+              <dd>{{ gracePeriodDays(house) }} days</dd>
+            </div>
+          </dl>
+          <div class="house-settings-fields">
+            <label [for]="'late-payment-fee-' + house.id">Daily Late Payment Fee (₱/day)</label>
+            <div class="input-prefix">
+              <span aria-hidden="true">₱</span>
+              <input [id]="'late-payment-fee-' + house.id"
+                [name]="'late-payment-fee-' + house.id" type="number" min="0" step="0.01"
+                [ngModel]="settingsDraft(house).late_payment_fee"
+                (ngModelChange)="settingsDraft(house).late_payment_fee = $event"
+                [disabled]="boardingHouseSettingsSaving[house.id]" />
+            </div>
+
+            <label [for]="'grace-period-days-' + house.id">Grace period (days)</label>
+            <input [id]="'grace-period-days-' + house.id"
+              [name]="'grace-period-days-' + house.id" type="number" min="0" step="1"
+              [ngModel]="settingsDraft(house).grace_period_days"
+              (ngModelChange)="settingsDraft(house).grace_period_days = $event"
+              [disabled]="boardingHouseSettingsSaving[house.id]" />
+
+            <label [for]="'house-rules-' + house.id">Boarding house rules</label>
+            <textarea [id]="'house-rules-' + house.id" [name]="'house-rules-' + house.id"
+              rows="4" maxlength="10000" [ngModel]="settingsDraft(house).rules"
+              (ngModelChange)="settingsDraft(house).rules = $event"
+              [disabled]="boardingHouseSettingsSaving[house.id]"></textarea>
+          </div>
+          <p *ngIf="house.rules" class="saved-rules" aria-label="Saved boarding house rules">
+            {{ house.rules }}
+          </p>
+          <p *ngIf="boardingHouseSettingsSuccess[house.id]" role="status"
+            class="policy-message policy-success">
+            {{ boardingHouseSettingsSuccess[house.id] }}
+          </p>
+          <p *ngIf="boardingHouseSettingsErrors[house.id]" role="alert"
+            class="policy-message policy-error">
+            {{ boardingHouseSettingsErrors[house.id] }}
+          </p>
+          <button type="button" class="btn btn-outline"
+            (click)="saveBoardingHouseSettings(house)"
+            [disabled]="boardingHouseSettingsSaving[house.id] || !settingsChanged(house)">
+            {{ boardingHouseSettingsSaving[house.id] ? 'Saving...' : 'Save House Settings' }}
+          </button>
+        </section>
+
         <ul class="amenities" *ngIf="house.amenities?.length" aria-label="Amenities">
           <li *ngFor="let amenity of house.amenities?.slice(0, 3)">{{ amenity }}</li>
           <li class="more" *ngIf="house.amenities && house.amenities.length > 3">

@@ -28,6 +28,13 @@
           <textarea id="description" name="description" rows="4"
             [(ngModel)]="formModel.description"></textarea>
         </div>
+
+        <div class="field full">
+          <label for="rules">Boarding House Rules</label>
+          <textarea id="rules" name="rules" rows="4" maxlength="10000"
+            [(ngModel)]="formModel.rules"
+            placeholder="Enter house rules on separate lines"></textarea>
+        </div>
       </div>
     </section>
 
@@ -82,6 +89,34 @@
             <input id="advance_payment" name="advance_payment" type="number" min="0"
               step="0.01" [(ngModel)]="formModel.advance_payment" />
           </div>
+        </div>
+
+        <div class="field">
+          <label for="late_payment_fee">Late Payment Fee (PHP)</label>
+          <div class="input-prefix">
+            <span aria-hidden="true">₱</span>
+            <input id="late_payment_fee" name="late_payment_fee" type="number" min="0"
+              step="0.01" [(ngModel)]="formModel.late_payment_fee" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="grace_period_days">Grace Period (days)</label>
+          <input id="grace_period_days" name="grace_period_days" type="number" min="0"
+            step="1" [(ngModel)]="formModel.grace_period_days" />
+        </div>
+
+        <div class="field full">
+          <label for="billing_policy">Rental Billing Policy *</label>
+          <select id="billing_policy" name="billing_policy"
+            [(ngModel)]="formModel.billing_policy" required>
+            <option value="full_monthly">
+              Full Monthly — charges the entire monthly rent when the tenant overlaps the billing month.
+            </option>
+            <option value="prorated">
+              Prorated — charges based on the tenant's billable days.
+            </option>
+          </select>
         </div>
       </div>
     </section>

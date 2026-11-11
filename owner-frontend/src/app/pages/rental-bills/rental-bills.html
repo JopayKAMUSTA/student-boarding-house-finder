@@ -1,0 +1,375 @@
+<div class="rental-bills-page">
+  <header class="page-header">
+    <div>
+      <h1>Rental Payments</h1>
+      <p>Monthly bills are generated automatically. Review tenant submissions and manage payment history.</p>
+    </div>
+  </header>
+
+  <p *ngIf="paymentReviewSuccess" role="status" class="notice notice-success">{{ paymentReviewSuccess }}</p>
+
+  <section class="generation-panel" aria-label="Automatic bill generation">
+    <div>
+      <h2>Automatic monthly billing</h2>
+      <p>Bills are reconciled daily for the selected calendar month. Due dates follow each assignment's move-in anniversary.</p>
+    </div>
+    <label>
+      Billing month
+      <input type="month" name="billingMonth" [(ngModel)]="billingMonth"
+        (ngModelChange)="onBillingMonthChange()" />
+    </label>
+    <p *ngIf="isLoadingGenerationStatus" role="status" class="hint">Loading generation status...</p>
+    <p *ngIf="generationStatusError" role="alert" class="notice notice-error">
+      {{ generationStatusError }}
+      <button type="button" class="btn btn-outline" (click)="loadGenerationStatus()">Retry</button>
+    </p>
+    <p *ngIf="generationStatus && !generationStatusError" class="generation-status" role="status">
+      <ng-container [ngSwitch]="generationStatus.status">
+        <span *ngSwitchCase="'complete'">
+          Complete: {{ generationStatus.generated_bills }} of
+          {{ generationStatus.eligible_assignments }} eligible assignment bills generated.
+        </span>
+        <span *ngSwitchCase="'pending_generation'">
+          {{ generationStatus.generated_bills }} of {{ generationStatus.eligible_assignments }} eligible bills generated;
+          {{ generationStatus.missing_bills }} will be reconciled by the scheduled process.
+        </span>
+        <span *ngSwitchDefault>No eligible assignments for this month.</span>
+      </ng-container>
+      <small>Daily at {{ generationStatus.scheduled_time }} ({{ generationStatus.timezone }})</small>
+    </p>
+  </section>
+
+  <section class="pending-panel" aria-labelledby="pending-title">
+    <div class="panel-heading">
+      <div>
+        <h2 id="pending-title">Tenant payment submissions</h2>
+        <p>Only approved submissions reduce rent or stop late fees.</p>
+      </div>
+      <button type="button" class="btn btn-outline" (click)="loadPendingPayments()"
+        [disabled]="isLoadingPendingPayments">Refresh</button>
+    </div>
+    <p *ngIf="isLoadingPendingPayments" role="status" class="notice">Loading submissions...</p>
+    <p *ngIf="pendingPaymentsError" role="alert" class="notice notice-error">
+      {{ pendingPaymentsError }}
+    </p>
+    <p *ngIf="!isLoadingPendingPayments && !pendingPaymentsError && !pendingPayments.length" class="hint">
+      No pending tenant submissions.
+    </p>
+    <article *ngFor="let payment of pendingPayments" class="submission-card">
+      <div class="submission-heading">
+        <div>
+          <strong>{{ payment.bill?.room_assignment?.tenant?.full_name || 'Tenant' }}</strong>
+          <span>Bill #{{ payment.rental_bill_id }} · claimed {{ payment.submitted_payment_date || payment.payment_date | date:'mediumDate' }}</span>
+        </div>
+        <span class="status pending">Pending</span>
+      </div>
+      <p>Submitted amount: <strong>{{ money(payment.submitted_amount ?? payment.amount) }}</strong></p>
+      <p *ngIf="payment.notes">{{ payment.notes }}</p>
+      <button *ngIf="payment.proof_url" type="button" class="btn btn-outline btn-small"
+        (click)="openPaymentProof(payment)">View payment proof</button>
+      <button *ngIf="selectedReviewPaymentId !== payment.id" type="button" class="btn btn-primary btn-small"
+        (click)="beginPaymentReview(payment)" [disabled]="reviewingPaymentId !== null">Review submission</button>
+      <form *ngIf="selectedReviewPaymentId === payment.id" class="review-form"
+        (ngSubmit)="approvePaymentSubmission(payment)">
+        <div class="form-grid">
+          <label>
+            Verified amount
+            <input name="verifiedAmount" type="number" min="0.01" step="0.01"
+              [(ngModel)]="verifiedAmount" required />
+          </label>
+          <label>
+            Verified payment date
+            <input name="verifiedPaymentDate" type="date"
+              [(ngModel)]="verifiedPaymentDate" required />
+          </label>
+          <label class="full">
+            Reason for amount change
+            <textarea name="amountAdjustmentReason" maxlength="1000"
+              [(ngModel)]="amountAdjustmentReason"
+              [required]="paymentAmountChanged(payment)"></textarea>
+          </label>
+          <label class="full">
+            Rejection reason (required to reject)
+            <textarea name="rejectionReason" maxlength="1000"
+              [(ngModel)]="rejectionReason"></textarea>
+          </label>
+        </div>
+        <p *ngIf="reviewError" role="alert" class="policy-error">{{ reviewError }}</p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" (click)="cancelPaymentReview()"
+            [disabled]="reviewingPaymentId !== null">Cancel</button>
+          <button type="button" class="btn btn-danger" (click)="rejectPaymentSubmission(payment)"
+            [disabled]="reviewingPaymentId !== null">
+            {{ reviewingPaymentId === payment.id ? 'Saving...' : 'Reject' }}
+          </button>
+          <button type="submit" class="btn btn-primary" [disabled]="reviewingPaymentId !== null">
+            {{ reviewingPaymentId === payment.id ? 'Saving...' : 'Approve verified payment' }}
+          </button>
+        </div>
+      </form>
+    </article>
+  </section>
+
+  <section class="list-panel" aria-label="Rental bills">
+    <div class="list-toolbar">
+      <p class="count">{{ total }} rental bill{{ total === 1 ? '' : 's' }}</p>
+      <label>
+        Filter this page
+        <select name="billFilter" [(ngModel)]="filter">
+          <option value="all">All statuses</option>
+          <option value="unpaid">Unpaid</option>
+          <option value="partially_paid">Partially paid</option>
+          <option value="paid">Paid</option>
+          <option value="overdue">Overdue</option>
+          <option value="voided">Voided bills</option>
+        </select>
+      </label>
+    </div>
+
+    <p *ngIf="isLoadingBills" role="status" class="notice">
+      <span class="spinner" aria-hidden="true"></span> Loading rental bills...
+    </p>
+    <div *ngIf="billsError" role="alert" class="notice notice-error">
+      <span>{{ billsError }}</span>
+      <button type="button" class="btn btn-outline" (click)="loadBills()" [disabled]="isLoadingBills">
+        Try again
+      </button>
+    </div>
+
+    <div *ngIf="!isLoadingBills && !billsError && total === 0" class="empty">
+      <h2>No rental bills yet</h2>
+      <p>Create a bill for a tenant with an active room assignment.</p>
+      <button type="button" class="btn btn-primary" (click)="openCreateForm()">Create first bill</button>
+    </div>
+
+    <div *ngIf="!isLoadingBills && !billsError && total > 0 && !filteredBills.length" class="empty">
+      <h2>No bills match this filter</h2>
+      <p>Try a different payment status.</p>
+    </div>
+
+    <div *ngIf="!isLoadingBills && !billsError && filteredBills.length" class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tenant</th>
+            <th>Boarding house / room</th>
+            <th>Rental period</th>
+            <th>Original rent</th>
+            <th>Daily fee</th>
+            <th>Grace</th>
+            <th>Overdue days</th>
+            <th>Late fees</th>
+            <th>Payments</th>
+            <th>Remaining rent</th>
+            <th>Total outstanding</th>
+            <th>Due date</th>
+            <th>Status</th>
+            <th><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let bill of filteredBills; trackBy: trackBill">
+            <th scope="row">{{ bill.room_assignment.tenant.full_name }}</th>
+            <td>
+              {{ bill.room_assignment.boarding_house_room.boarding_house.name || '—' }}
+              <small>Room {{ bill.room_assignment.boarding_house_room.room_number }}</small>
+            </td>
+            <td>{{ bill.rental_period_start | date:'mediumDate' }} – {{ bill.rental_period_end | date:'mediumDate' }}</td>
+            <td>{{ money(bill.original_amount) }}</td>
+            <td>
+              {{ money(bill.daily_late_fee_snapshot ?? 0) }}/day
+              <small *ngIf="dailyFeeDisabled(bill)">Disabled</small>
+            </td>
+            <td>{{ bill.grace_period_days_snapshot ?? 0 }} days</td>
+            <td>{{ bill.overdue_days }}</td>
+            <td>{{ money(bill.accumulated_late_fee) }}</td>
+            <td>
+              {{ money(bill.total_payments) }}
+              <small *ngIf="hasFutureDatedPayments(bill)">
+                {{ money(bill.future_dated_payment_total) }} future-dated
+              </small>
+            </td>
+            <td>{{ money(bill.remaining_balance) }}</td>
+            <td><strong>{{ money(bill.total_outstanding) }}</strong></td>
+            <td>{{ bill.due_date | date:'mediumDate' }}</td>
+            <td><span class="status" [class]="bill.is_voided ? 'status voided' : 'status ' + bill.payment_status">
+              {{ statusLabel(bill) | titlecase }}
+            </span></td>
+            <td><button type="button" class="btn btn-outline btn-small" (click)="openBill(bill)">
+              Details
+            </button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <nav *ngIf="lastPage > 1" aria-label="Rental bill pages" class="pagination">
+      <button type="button" class="btn btn-outline" (click)="previousPage()"
+        [disabled]="isLoadingBills || currentPage <= 1">Previous</button>
+      <span>Page {{ currentPage }} of {{ lastPage }}</span>
+      <button type="button" class="btn btn-outline" (click)="nextPage()"
+        [disabled]="isLoadingBills || currentPage >= lastPage">Next</button>
+    </nav>
+  </section>
+
+  <div *ngIf="selectedBill" class="modal-backdrop" (click)="closeBillDetails()">
+    <section class="details-dialog" role="dialog" aria-modal="true" aria-labelledby="bill-details-title"
+      (click)="$event.stopPropagation()">
+      <header class="dialog-header">
+        <div>
+          <p class="eyebrow">Rental bill #{{ selectedBill.id }}</p>
+          <h2 id="bill-details-title">{{ selectedBill.room_assignment.tenant.full_name }}</h2>
+        </div>
+        <button type="button" class="icon-button" aria-label="Close details"
+          (click)="closeBillDetails()">×</button>
+      </header>
+
+      <p *ngIf="isLoadingDetails" role="status" class="notice">
+        <span class="spinner" aria-hidden="true"></span> Loading bill details...
+      </p>
+      <p *ngIf="detailsError" role="alert" class="notice notice-error">{{ detailsError }}</p>
+      <p *ngIf="detailsSuccess" role="status" class="notice notice-success">{{ detailsSuccess }}</p>
+
+      <ng-container *ngIf="!isLoadingDetails">
+        <dl class="bill-summary">
+          <div><dt>Boarding house</dt><dd>{{ selectedBill.room_assignment.boarding_house_room.boarding_house.name || '—' }}</dd></div>
+          <div><dt>Room</dt><dd>{{ selectedBill.room_assignment.boarding_house_room.room_number }}</dd></div>
+          <div><dt>Rental period</dt><dd>{{ selectedBill.rental_period_start | date:'longDate' }} – {{ selectedBill.rental_period_end | date:'longDate' }}</dd></div>
+          <div><dt>Billing policy</dt><dd>{{ selectedBill.billing_policy === 'prorated' ? 'Prorated' : selectedBill.billing_policy === 'full_monthly' ? 'Full Monthly' : 'Legacy / unavailable' }}</dd></div>
+          <div><dt>Monthly rent snapshot</dt><dd>{{ money(selectedBill.monthly_rent_snapshot) }}</dd></div>
+          <div *ngIf="selectedBill.billing_policy === 'prorated'">
+            <dt>Proration</dt>
+            <dd>{{ selectedBill.billable_days }} of {{ selectedBill.days_in_month }} days</dd>
+          </div>
+          <div><dt>Original rent</dt><dd>{{ money(selectedBill.original_amount) }}</dd></div>
+          <div>
+            <dt>Daily late fee</dt>
+            <dd>
+              {{ money(selectedBill.daily_late_fee_snapshot ?? 0) }}/day
+              <span *ngIf="dailyFeeDisabled(selectedBill)"> (disabled)</span>
+            </dd>
+          </div>
+          <div><dt>Grace period</dt><dd>{{ selectedBill.grace_period_days_snapshot ?? 0 }} days</dd></div>
+          <div><dt>Overdue days</dt><dd>{{ selectedBill.overdue_days }}</dd></div>
+          <div><dt>Accumulated late fee</dt><dd>{{ money(selectedBill.accumulated_late_fee) }}</dd></div>
+          <div><dt>Late fee remaining</dt><dd>{{ money(selectedBill.remaining_late_fee) }}</dd></div>
+          <div><dt>Payments effective to date</dt><dd>{{ money(selectedBill.total_payments) }}</dd></div>
+          <div *ngIf="hasFutureDatedPayments(selectedBill)">
+            <dt>Future-dated payments</dt>
+            <dd>{{ money(selectedBill.future_dated_payment_total) }}</dd>
+          </div>
+          <div><dt>Remaining rent</dt><dd>{{ money(selectedBill.remaining_balance) }}</dd></div>
+          <div><dt>Total outstanding</dt><dd><strong>{{ money(selectedBill.total_outstanding) }}</strong></dd></div>
+          <div><dt>Due date</dt><dd>{{ selectedBill.due_date | date:'longDate' }}</dd></div>
+          <div><dt>Status</dt><dd>{{ statusLabel(selectedBill) | titlecase }}</dd></div>
+          <div *ngIf="selectedBill.is_voided"><dt>Void reason</dt><dd>{{ selectedBill.void_reason || '—' }}</dd></div>
+        </dl>
+        <p class="calculation-note" *ngIf="dailyFeeDisabled(selectedBill)">
+          Late-payment penalties are disabled for this bill (₱0.00 per day).
+        </p>
+        <p class="calculation-note" *ngIf="!dailyFeeDisabled(selectedBill)">
+          Daily fee calculation: {{ money(selectedBill.daily_late_fee_snapshot) }} ×
+          {{ selectedBill.overdue_days }} eligible overdue days.
+          Payments dated on an overdue day apply after that day's fee.
+        </p>
+        <p class="calculation-note" *ngIf="selectedBill.billing_policy === 'prorated'">
+          Calculation: {{ money(selectedBill.monthly_rent_snapshot) }} ×
+          {{ selectedBill.billable_days }} ÷ {{ selectedBill.days_in_month }} days.
+          The saved bill amount is the final rounded amount.
+        </p>
+        <p class="calculation-note" *ngIf="selectedBill.billing_policy === 'full_monthly'">
+          This policy charges the full monthly rent when the assignment overlaps the billing month.
+        </p>
+
+        <section *ngIf="selectedBill.payments?.length" class="payments" aria-labelledby="payment-history-title">
+          <h3 id="payment-history-title">Payment history</h3>
+          <article *ngFor="let payment of selectedBill.payments" class="payment-row">
+            <div class="payment-heading">
+              <strong>{{ money(payment.amount) }}</strong>
+              <span>
+                {{ payment.payment_date | date:'mediumDate' }}
+                <small *ngIf="payment.is_future_dated && !payment.voided_at">Future-dated · not yet effective</small>
+                <small class="status" [class]="payment.status || 'approved'">
+                  {{ payment.status || 'approved' }}
+                </small>
+              </span>
+            </div>
+            <p *ngIf="payment.submitted_amount !== null && payment.submitted_amount !== undefined">
+              Submitted {{ money(payment.submitted_amount) }} on
+              {{ payment.submitted_payment_date | date:'mediumDate' }}.
+            </p>
+            <p *ngIf="payment.amount_adjustment_reason">
+              Verified amount adjustment: {{ payment.amount_adjustment_reason }}
+            </p>
+            <p *ngIf="payment.rejection_reason" class="void-detail">
+              Rejected: {{ payment.rejection_reason }}
+            </p>
+            <p *ngIf="payment.reviewed_at">
+              Reviewed {{ payment.reviewed_at | date:'medium' }}
+              <span *ngIf="reviewedByName(payment) as reviewer">by {{ reviewer }}</span>
+            </p>
+            <button *ngIf="payment.proof_url" type="button" class="btn btn-outline btn-small"
+              (click)="openPaymentProof(payment)">View payment proof</button>
+            <p *ngIf="payment.notes">{{ payment.notes }}</p>
+            <p *ngIf="recordedByName(payment) as recordedName">Recorded by {{ recordedName }}</p>
+            <p *ngIf="payment.voided_at" class="void-detail">
+              Voided {{ payment.voided_at | date:'medium' }}
+              <span *ngIf="voidedByName(payment) as voidedName">by {{ voidedName }}</span>
+              · {{ payment.void_reason }}
+            </p>
+            <ng-container *ngIf="!payment.voided_at && (payment.status === 'approved' || !payment.status)">
+              <form *ngIf="voidingPaymentId === payment.id" (ngSubmit)="voidPayment(payment)" class="void-form">
+                <label>
+                  Reason for voiding
+                  <textarea name="voidReason" [(ngModel)]="voidReason" required maxlength="1000"></textarea>
+                </label>
+                <p *ngIf="voidError" role="alert" class="policy-error">{{ voidError }}</p>
+                <div class="form-actions">
+                  <button type="button" class="btn btn-outline" (click)="cancelVoidPayment()"
+                    [disabled]="isVoidingPayment">Cancel</button>
+                  <button type="submit" class="btn btn-danger" [disabled]="isVoidingPayment">
+                    {{ isVoidingPayment ? 'Voiding...' : 'Confirm void' }}
+                  </button>
+                </div>
+              </form>
+              <button *ngIf="voidingPaymentId !== payment.id" type="button" class="btn btn-outline btn-small"
+                (click)="beginVoidPayment(payment)" [disabled]="isVoidingPayment">Void payment</button>
+            </ng-container>
+          </article>
+        </section>
+        <p *ngIf="!selectedBill.payments?.length" class="hint">No payments have been recorded.</p>
+
+        <section *ngIf="!selectedBill.is_voided && hasBalance(selectedBill)"
+          class="record-payment" aria-labelledby="record-payment-title">
+          <h3 id="record-payment-title">Record a payment</h3>
+          <p>
+            Current total outstanding: <strong>{{ money(selectedBill.total_outstanding) }}</strong>.
+            The backend validates the payment against the balance on the payment date.
+          </p>
+          <form (ngSubmit)="recordPayment()">
+            <div class="form-grid">
+              <label>
+                Payment amount
+                <input name="paymentAmount" type="number" min="0.01" step="0.01"
+                  [(ngModel)]="paymentAmount" required />
+              </label>
+              <label>
+                Payment date
+                <input name="paymentDate" type="date" [(ngModel)]="paymentDate" required />
+              </label>
+              <label class="full">
+                Notes <span class="optional">(optional)</span>
+                <textarea name="paymentNotes" maxlength="1000" [(ngModel)]="paymentNotes"></textarea>
+              </label>
+            </div>
+            <p *ngIf="paymentError" role="alert" class="policy-error">{{ paymentError }}</p>
+            <button type="submit" class="btn btn-primary"
+              [disabled]="isRecordingPayment || !paymentAmount">
+              {{ isRecordingPayment ? 'Recording...' : 'Record Payment' }}
+            </button>
+          </form>
+        </section>
+      </ng-container>
+    </section>
+  </div>
+</div>

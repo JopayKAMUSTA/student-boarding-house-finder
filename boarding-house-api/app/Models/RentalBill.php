@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\RentalBillBalanceCalculator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,6 +20,12 @@ class RentalBill extends Model
     protected $fillable = [
         'room_assignment_id',
         'amount',
+        'billing_policy',
+        'monthly_rent_snapshot',
+        'billable_days',
+        'days_in_month',
+        'daily_late_fee_snapshot',
+        'grace_period_days_snapshot',
         'rental_period_start',
         'rental_period_end',
         'due_date',
@@ -30,6 +37,14 @@ class RentalBill extends Model
     protected $appends = [
         'amount_paid',
         'balance',
+        'original_amount',
+        'total_payments',
+        'remaining_balance',
+        'overdue_days',
+        'accumulated_late_fee',
+        'remaining_late_fee',
+        'total_outstanding',
+        'future_dated_payment_total',
         'payment_status',
         'is_voided',
     ];
@@ -38,6 +53,11 @@ class RentalBill extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'monthly_rent_snapshot' => 'decimal:2',
+            'billable_days' => 'integer',
+            'days_in_month' => 'integer',
+            'daily_late_fee_snapshot' => 'decimal:2',
+            'grace_period_days_snapshot' => 'integer',
             'rental_period_start' => 'date',
             'rental_period_end' => 'date',
             'due_date' => 'date',
@@ -62,26 +82,71 @@ class RentalBill extends Model
 
     public function getAmountPaidAttribute(): string
     {
-        return self::formatCents($this->amountPaidInCents());
+        return $this->financialSummary()['total_payments'];
     }
 
     public function getBalanceAttribute(): string
     {
-        return self::formatCents($this->balanceInCents());
+        return $this->financialSummary()['remaining_balance'];
+    }
+
+    public function getOriginalAmountAttribute(): string
+    {
+        return $this->financialSummary()['original_amount'];
+    }
+
+    public function getTotalPaymentsAttribute(): string
+    {
+        return $this->financialSummary()['total_payments'];
+    }
+
+    public function getRemainingBalanceAttribute(): string
+    {
+        return $this->financialSummary()['remaining_balance'];
+    }
+
+    public function getOverdueDaysAttribute(): int
+    {
+        return $this->financialSummary()['overdue_days'];
+    }
+
+    public function getAccumulatedLateFeeAttribute(): string
+    {
+        return $this->financialSummary()['accumulated_late_fee'];
+    }
+
+    public function getRemainingLateFeeAttribute(): string
+    {
+        return $this->financialSummary()['remaining_late_fee'];
+    }
+
+    public function getTotalOutstandingAttribute(): string
+    {
+        return $this->financialSummary()['total_outstanding'];
+    }
+
+    public function getFutureDatedPaymentTotalAttribute(): string
+    {
+        return $this->financialSummary()['future_dated_payment_total'];
     }
 
     public function getPaymentStatusAttribute(): string
     {
-        $balance = $this->balanceInCents();
+        $balance = $this->outstandingInCents();
         if ($balance === 0) {
             return 'paid';
         }
 
-        if ($this->due_date->toDateString() < today()->toDateString()) {
+        if (
+            $this->due_date->toDateString() <
+            now(config('app.timezone', 'UTC'))->toDateString()
+        ) {
             return 'overdue';
         }
 
-        return $this->amountPaidInCents() > 0 ? 'partially_paid' : 'unpaid';
+        return $this->financialSummary()['_total_payments_cents'] > 0
+            ? 'partially_paid'
+            : 'unpaid';
     }
 
     public function getIsVoidedAttribute(): bool
@@ -91,18 +156,22 @@ class RentalBill extends Model
 
     public function amountPaidInCents(): int
     {
-        $payments = $this->relationLoaded('payments')
-            ? $this->getRelation('payments')
-            : $this->payments()->get();
-
-        return $payments
-            ->whereNull('voided_at')
-            ->sum(fn (RentalPayment $payment): int => self::toCents($payment->amount));
+        return $this->financialSummary()['_total_payments_cents'];
     }
 
     public function balanceInCents(): int
     {
-        return max(0, self::toCents($this->amount) - $this->amountPaidInCents());
+        return $this->financialSummary()['_remaining_balance_cents'];
+    }
+
+    public function outstandingInCents(): int
+    {
+        return $this->financialSummary()['_total_outstanding_cents'];
+    }
+
+    public function financialSummary(): array
+    {
+        return app(RentalBillBalanceCalculator::class)->calculate($this);
     }
 
     public static function toCents(string|int|float $amount): int
@@ -113,8 +182,4 @@ class RentalBill extends Model
         return ((int) $whole * 100) + (int) $fraction;
     }
 
-    private static function formatCents(int $amount): string
-    {
-        return number_format($amount / 100, 2, '.', '');
-    }
 }

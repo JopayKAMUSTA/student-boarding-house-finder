@@ -20,6 +20,10 @@ class Boardinghouse extends Model
         'monthly_rent',
         'security_deposit',
         'advance_payment',
+        'billing_policy',
+        'late_payment_fee',
+        'grace_period_days',
+        'rules',
         'available_rooms',
         'total_rooms',
         'room_type',
@@ -33,6 +37,8 @@ class Boardinghouse extends Model
             'monthly_rent' => 'decimal:2',
             'security_deposit' => 'decimal:2',
             'advance_payment' => 'decimal:2',
+            'late_payment_fee' => 'decimal:2',
+            'grace_period_days' => 'integer',
             'amenities' => 'array',
         ];
     }

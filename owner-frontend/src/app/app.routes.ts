@@ -13,6 +13,7 @@ import { RoomForm } from './pages/rooms/room-form';
 import { RoomDetails } from './pages/rooms/room-details';
 import { OwnerLayout } from './layouts/owner-layout';
 import { TenantManagement } from './pages/tenants/tenant-management';
+import { RentalBills } from './pages/rental-bills/rental-bills';
 
 
 export const routes: Routes = [
@@ -43,6 +44,7 @@ export const routes: Routes = [
         component: RoomManagement
       },
       { path: 'owner/tenants', component: TenantManagement },
+      { path: 'owner/rental-bills', component: RentalBills },
       { path: 'owner-profile', component: OwnerProfile }
     ]
   },

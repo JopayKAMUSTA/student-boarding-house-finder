@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -204,6 +205,15 @@ class OwnerTenantController extends Controller
                 ]);
             }
 
+            $transferDate = Carbon::parse($validated['move_in_date'])->startOfDay();
+            if (! $transferDate->gt($current->move_in_date)) {
+                throw ValidationException::withMessages([
+                    'move_in_date' => [
+                        'The transfer date must be later than the current assignment move-in date.',
+                    ],
+                ]);
+            }
+
             $destinationId = (int) $validated['boarding_house_room_id'];
             if ($destinationId === (int) $current->boarding_house_room_id) {
                 throw ValidationException::withMessages([
@@ -230,12 +240,12 @@ class OwnerTenantController extends Controller
                 ->where('id', $current->id)
                 ->update([
                     'status' => 'moved_out',
-                    'move_out_date' => $validated['move_in_date'],
+                    'move_out_date' => $transferDate->copy()->subDay()->toDateString(),
                 ]);
 
             $newAssignment = $lockedTenant->assignments()->create([
                 'boarding_house_room_id' => $destination->id,
-                'move_in_date' => $validated['move_in_date'],
+                'move_in_date' => $transferDate->toDateString(),
                 'monthly_rent' => $destination->monthly_rent,
                 'status' => 'active',
             ]);

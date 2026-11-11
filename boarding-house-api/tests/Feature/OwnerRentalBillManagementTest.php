@@ -18,7 +18,7 @@ class OwnerRentalBillManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_owner_can_create_a_monthly_bill_with_an_assignment_rent_snapshot(): void
+    public function test_owner_can_create_a_full_monthly_bill_from_assignment_rent(): void
     {
         $owner = $this->createOwner();
         $tenant = $this->createTenant($owner);
@@ -27,13 +27,17 @@ class OwnerRentalBillManagementTest extends TestCase
 
         $response = $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
             'room_assignment_id' => $assignment->id,
-            'amount' => '5100.00',
+            'amount' => '1.00',
             'rental_period_start' => '2026-11-01',
             'rental_period_end' => '2026-11-30',
             'due_date' => '2026-11-05',
         ])->assertCreated()
             ->assertJsonPath('data.room_assignment_id', $assignment->id)
             ->assertJsonPath('data.amount', '5100.00')
+            ->assertJsonPath('data.billing_policy', 'full_monthly')
+            ->assertJsonPath('data.monthly_rent_snapshot', '5100.00')
+            ->assertJsonPath('data.billable_days', 30)
+            ->assertJsonPath('data.days_in_month', 30)
             ->assertJsonPath('data.payment_status', 'overdue')
             ->assertJsonPath('data.balance', '5100.00');
 
@@ -41,6 +45,194 @@ class OwnerRentalBillManagementTest extends TestCase
             'id' => $response->json('data.id'),
             'room_assignment_id' => $assignment->id,
             'amount' => '5100.00',
+        ]);
+    }
+
+    public function test_prorated_bill_uses_only_the_assignment_days_in_the_month(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            ['move_in_date' => '2026-11-10'],
+            ['billing_policy' => 'prorated']
+        );
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2026-11-01',
+            'rental_period_end' => '2026-11-30',
+            'due_date' => '2026-11-05',
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', '3500.00')
+            ->assertJsonPath('data.billing_policy', 'prorated')
+            ->assertJsonPath('data.monthly_rent_snapshot', '5000.00')
+            ->assertJsonPath('data.billable_days', 21)
+            ->assertJsonPath('data.days_in_month', 30);
+    }
+
+    public function test_prorated_bill_uses_29_days_for_leap_year_february(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            ['monthly_rent' => '3100.00', 'move_in_date' => '2024-02-15'],
+            ['billing_policy' => 'prorated']
+        );
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2024-02-01',
+            'rental_period_end' => '2024-02-29',
+            'due_date' => '2024-02-05',
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', '1603.45')
+            ->assertJsonPath('data.billable_days', 15)
+            ->assertJsonPath('data.days_in_month', 29);
+    }
+
+    public function test_prorated_bill_uses_28_days_for_non_leap_year_february(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            ['monthly_rent' => '3100.00', 'move_in_date' => '2025-02-15'],
+            ['billing_policy' => 'prorated']
+        );
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2025-02-01',
+            'rental_period_end' => '2025-02-28',
+            'due_date' => '2025-02-05',
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', '1550.00')
+            ->assertJsonPath('data.billable_days', 14)
+            ->assertJsonPath('data.days_in_month', 28);
+    }
+
+    public function test_prorated_bill_uses_31_day_calendar_month_and_half_up_rounding(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            ['move_in_date' => '2027-01-16'],
+            ['billing_policy' => 'prorated']
+        );
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2027-01-01',
+            'rental_period_end' => '2027-01-31',
+            'due_date' => '2027-01-05',
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', '2580.65')
+            ->assertJsonPath('data.billable_days', 16)
+            ->assertJsonPath('data.days_in_month', 31);
+    }
+
+    public function test_prorated_bill_counts_a_one_day_assignment_overlap_inclusively(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            ['move_in_date' => '2026-11-30'],
+            ['billing_policy' => 'prorated']
+        );
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2026-11-01',
+            'rental_period_end' => '2026-11-30',
+            'due_date' => '2026-11-05',
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', '166.67')
+            ->assertJsonPath('data.billable_days', 1)
+            ->assertJsonPath('data.days_in_month', 30);
+    }
+
+    public function test_assignment_without_month_overlap_is_rejected(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            ['move_in_date' => '2026-12-01'],
+            ['billing_policy' => 'prorated']
+        );
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2026-11-01',
+            'rental_period_end' => '2026-11-30',
+            'due_date' => '2026-11-05',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['room_assignment_id']);
+
+        $this->assertDatabaseCount('rental_bills', 0);
+    }
+
+    public function test_bill_creation_rejects_an_unsupported_boarding_house_policy(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            [],
+            ['billing_policy' => 'unsupported']
+        );
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2026-11-01',
+            'rental_period_end' => '2026-11-30',
+            'due_date' => '2026-11-05',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['billing_policy']);
+
+        $this->assertDatabaseCount('rental_bills', 0);
+    }
+
+    public function test_existing_bill_amount_and_legacy_snapshots_are_not_changed(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment($tenant);
+        $existingBill = $this->createBill($assignment, [
+            'amount' => '4321.09',
+            'rental_period_start' => '2026-10-01',
+            'rental_period_end' => '2026-10-31',
+        ]);
+        $assignment->boardingHouseRoom->boardingHouse->update([
+            'billing_policy' => 'prorated',
+        ]);
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2026-11-01',
+            'rental_period_end' => '2026-11-30',
+            'due_date' => '2026-11-05',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('rental_bills', [
+            'id' => $existingBill->id,
+            'amount' => '4321.09',
+            'billing_policy' => null,
+            'monthly_rent_snapshot' => null,
+            'billable_days' => null,
+            'days_in_month' => null,
         ]);
     }
 
@@ -115,6 +307,374 @@ class OwnerRentalBillManagementTest extends TestCase
             ->assertJsonPath('data.amount_paid', '5000.00')
             ->assertJsonPath('data.balance', '0.00')
             ->assertJsonPath('data.payment_status', 'paid');
+    }
+
+    public function test_daily_late_fee_respects_zero_fee_and_grace_period(): void
+    {
+        Carbon::setTestNow('2026-11-10 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $assignment = $this->createAssignment($this->createTenant($owner));
+            $noFee = $this->createBill($assignment, [
+                'amount' => '100.00',
+                'due_date' => '2026-11-05',
+                'daily_late_fee_snapshot' => '0.00',
+            ]);
+            $graceBill = $this->createBill($assignment, [
+                'amount' => '100.00',
+                'rental_period_start' => '2026-10-01',
+                'rental_period_end' => '2026-10-31',
+                'due_date' => '2026-11-05',
+                'daily_late_fee_snapshot' => '10.00',
+                'grace_period_days_snapshot' => 2,
+            ]);
+            Sanctum::actingAs($owner);
+
+            $this->getJson("/api/owner/rental-bills/{$noFee->id}")
+                ->assertOk()
+                ->assertJsonPath('data.overdue_days', 5)
+                ->assertJsonPath('data.accumulated_late_fee', '0.00')
+                ->assertJsonPath('data.total_outstanding', '100.00');
+            $this->getJson("/api/owner/rental-bills/{$graceBill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.overdue_days', 3)
+                ->assertJsonPath('data.accumulated_late_fee', '30.00')
+                ->assertJsonPath('data.total_outstanding', '130.00');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_fee_starts_on_first_chargeable_day_and_accumulates_per_calendar_day(): void
+    {
+        Carbon::setTestNow('2026-11-08 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            Sanctum::actingAs($owner);
+
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.overdue_days', 3)
+                ->assertJsonPath('data.accumulated_late_fee', '30.00')
+                ->assertJsonPath('data.total_outstanding', '130.00');
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.accumulated_late_fee', '30.00')
+                ->assertJsonPath('data.total_outstanding', '130.00');
+            $this->assertDatabaseCount('rental_bills', 1);
+            $this->assertDatabaseCount('rental_payments', 0);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_same_day_payments_are_applied_after_that_days_fee_and_do_not_stop_fees_while_partial(): void
+    {
+        Carbon::setTestNow('2026-11-06 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            $this->createPayment($owner, $bill, [
+                'amount' => '20.00',
+                'payment_date' => '2026-11-06',
+            ]);
+            $this->createPayment($owner, $bill, [
+                'amount' => '30.00',
+                'payment_date' => '2026-11-06',
+            ]);
+            Sanctum::actingAs($owner);
+
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.total_payments', '50.00')
+                ->assertJsonPath('data.overdue_days', 1)
+                ->assertJsonPath('data.accumulated_late_fee', '10.00')
+                ->assertJsonPath('data.remaining_balance', '50.00')
+                ->assertJsonPath('data.total_outstanding', '60.00');
+
+            Carbon::setTestNow('2026-11-08 12:00:00');
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.overdue_days', 3)
+                ->assertJsonPath('data.accumulated_late_fee', '30.00')
+                ->assertJsonPath('data.total_outstanding', '80.00');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_full_payment_including_fees_stops_future_fee_accrual(): void
+    {
+        Carbon::setTestNow('2026-11-06 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            Sanctum::actingAs($owner);
+
+            $this->postJson("/api/owner/rental-bills/{$bill->id}/payments", [
+                'amount' => '110.00',
+                'payment_date' => '2026-11-06',
+            ])->assertCreated()
+                ->assertJsonPath('data.total_outstanding', '0.00')
+                ->assertJsonPath('data.accumulated_late_fee', '10.00');
+
+            Carbon::setTestNow('2026-11-10 12:00:00');
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.overdue_days', 1)
+                ->assertJsonPath('data.accumulated_late_fee', '10.00')
+                ->assertJsonPath('data.total_outstanding', '0.00');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_payment_on_first_overdue_day_is_capped_by_rent_plus_that_days_fee(): void
+    {
+        Carbon::setTestNow('2026-11-06 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            Sanctum::actingAs($owner);
+
+            $this->postJson("/api/owner/rental-bills/{$bill->id}/payments", [
+                'amount' => '111.00',
+                'payment_date' => '2026-11-06',
+            ])->assertUnprocessable()
+                ->assertJsonValidationErrors(['amount']);
+            $this->postJson("/api/owner/rental-bills/{$bill->id}/payments", [
+                'amount' => '110.00',
+                'payment_date' => '2026-11-06',
+            ])->assertCreated()
+                ->assertJsonPath('data.total_outstanding', '0.00');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_voiding_payment_restores_rent_and_fee_outstanding(): void
+    {
+        Carbon::setTestNow('2026-11-08 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            $payment = $this->createPayment($owner, $bill, [
+                'amount' => '50.00',
+                'payment_date' => '2026-11-06',
+            ]);
+            Sanctum::actingAs($owner);
+
+            $this->patchJson("/api/owner/rental-payments/{$payment->id}/void", [
+                'reason' => 'Incorrect payment.',
+            ])->assertOk()
+                ->assertJsonPath('bill.total_payments', '0.00')
+                ->assertJsonPath('bill.overdue_days', 3)
+                ->assertJsonPath('bill.accumulated_late_fee', '30.00')
+                ->assertJsonPath('bill.total_outstanding', '130.00');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_future_dated_partial_payment_is_not_effective_until_its_date(): void
+    {
+        Carbon::setTestNow('2026-11-06 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            Sanctum::actingAs($owner);
+
+            $this->postJson("/api/owner/rental-bills/{$bill->id}/payments", [
+                'amount' => '50.00',
+                'payment_date' => '2026-11-08',
+            ])->assertCreated()
+                ->assertJsonPath('payment.is_future_dated', true)
+                ->assertJsonPath('data.total_payments', '0.00')
+                ->assertJsonPath('data.future_dated_payment_total', '50.00')
+                ->assertJsonPath('data.total_outstanding', '110.00');
+
+            Carbon::setTestNow('2026-11-08 12:00:00');
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.total_payments', '50.00')
+                ->assertJsonPath('data.future_dated_payment_total', '0.00')
+                ->assertJsonPath('data.overdue_days', 3)
+                ->assertJsonPath('data.total_outstanding', '80.00')
+                ->assertJsonPath('data.payments.0.is_future_dated', false);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_future_dated_full_settlement_is_effective_on_the_recorded_date(): void
+    {
+        Carbon::setTestNow('2026-11-06 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            Sanctum::actingAs($owner);
+
+            $this->postJson("/api/owner/rental-bills/{$bill->id}/payments", [
+                'amount' => '130.00',
+                'payment_date' => '2026-11-08',
+            ])->assertCreated()
+                ->assertJsonPath('data.total_payments', '0.00')
+                ->assertJsonPath('data.future_dated_payment_total', '130.00')
+                ->assertJsonPath('data.total_outstanding', '110.00');
+
+            Carbon::setTestNow('2026-11-08 12:00:00');
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.total_payments', '130.00')
+                ->assertJsonPath('data.accumulated_late_fee', '30.00')
+                ->assertJsonPath('data.total_outstanding', '0.00');
+
+            Carbon::setTestNow('2026-11-10 12:00:00');
+            $this->getJson("/api/owner/rental-bills/{$bill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.overdue_days', 3)
+                ->assertJsonPath('data.accumulated_late_fee', '30.00')
+                ->assertJsonPath('data.total_outstanding', '0.00');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_voiding_future_dated_payment_removes_it_from_scheduled_totals(): void
+    {
+        Carbon::setTestNow('2026-11-06 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $bill = $this->createBill(
+                $this->createAssignment($this->createTenant($owner)),
+                [
+                    'amount' => '100.00',
+                    'due_date' => '2026-11-05',
+                    'daily_late_fee_snapshot' => '10.00',
+                ]
+            );
+            $payment = $this->createPayment($owner, $bill, [
+                'amount' => '50.00',
+                'payment_date' => '2026-11-08',
+            ]);
+            Sanctum::actingAs($owner);
+
+            $this->patchJson("/api/owner/rental-payments/{$payment->id}/void", [
+                'reason' => 'Scheduled in error.',
+            ])->assertOk()
+                ->assertJsonPath('bill.future_dated_payment_total', '0.00')
+                ->assertJsonPath('bill.total_payments', '0.00')
+                ->assertJsonPath('bill.total_outstanding', '110.00')
+                ->assertJsonPath('data.is_future_dated', true);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_legacy_bill_has_no_retroactive_late_fees_and_new_bill_keeps_snapshots(): void
+    {
+        Carbon::setTestNow('2026-11-10 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $assignment = $this->createAssignment(
+                $this->createTenant($owner),
+                [],
+                ['late_payment_fee' => '25.00', 'grace_period_days' => 3]
+            );
+            $legacyBill = $this->createBill($assignment, [
+                'amount' => '100.00',
+                'due_date' => '2026-11-05',
+            ]);
+            Sanctum::actingAs($owner);
+
+            $this->getJson("/api/owner/rental-bills/{$legacyBill->id}")
+                ->assertOk()
+                ->assertJsonPath('data.daily_late_fee_snapshot', null)
+                ->assertJsonPath('data.grace_period_days_snapshot', null)
+                ->assertJsonPath('data.accumulated_late_fee', '0.00')
+                ->assertJsonPath('data.total_outstanding', '100.00');
+            $this->getJson("/api/owner/rental-bills/{$legacyBill->id}")
+                ->assertJsonPath('data.overdue_days', 5);
+
+            $assignment->boardingHouseRoom->boardingHouse->update([
+                'late_payment_fee' => '99.00',
+                'grace_period_days' => 0,
+            ]);
+            $creation = $this->postJson(
+                "/api/owner/tenants/{$assignment->tenant_id}/rental-bills",
+                [
+                    'room_assignment_id' => $assignment->id,
+                    'rental_period_start' => '2026-10-01',
+                    'rental_period_end' => '2026-10-31',
+                    'due_date' => '2026-11-05',
+                ]
+            )->assertCreated()
+                ->assertJsonPath('data.daily_late_fee_snapshot', '99.00')
+                ->assertJsonPath('data.grace_period_days_snapshot', 0);
+            $newBillId = $creation->json('data.id');
+            $assignment->boardingHouseRoom->boardingHouse->update([
+                'late_payment_fee' => '0.00',
+                'grace_period_days' => 10,
+            ]);
+
+            $this->getJson("/api/owner/rental-bills/{$newBillId}")
+                ->assertOk()
+                ->assertJsonPath('data.daily_late_fee_snapshot', '99.00')
+                ->assertJsonPath('data.grace_period_days_snapshot', 0)
+                ->assertJsonPath('data.accumulated_late_fee', '495.00');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_all_four_payment_statuses_are_calculated_dynamically(): void
@@ -257,6 +817,46 @@ class OwnerRentalBillManagementTest extends TestCase
         ]);
     }
 
+    public function test_transfer_date_is_counted_only_for_the_new_assignment_in_prorated_bills(): void
+    {
+        $owner = $this->createOwner();
+        $tenant = $this->createTenant($owner);
+        $assignment = $this->createAssignment(
+            $tenant,
+            ['move_in_date' => '2026-10-01'],
+            ['billing_policy' => 'prorated']
+        );
+        $destination = $this->createRoom(
+            $assignment->boardingHouseRoom->boardingHouse,
+            '102'
+        );
+        Sanctum::actingAs($owner);
+
+        $transferResponse = $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
+            'boarding_house_room_id' => $destination->id,
+            'move_in_date' => '2026-11-15',
+        ])->assertCreated();
+        $newAssignmentId = $transferResponse->json('data.id');
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $assignment->id,
+            'rental_period_start' => '2026-11-01',
+            'rental_period_end' => '2026-11-30',
+            'due_date' => '2026-11-05',
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', '2333.33')
+            ->assertJsonPath('data.billable_days', 14);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
+            'room_assignment_id' => $newAssignmentId,
+            'rental_period_start' => '2026-11-01',
+            'rental_period_end' => '2026-11-30',
+            'due_date' => '2026-11-05',
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', '2666.67')
+            ->assertJsonPath('data.billable_days', 16);
+    }
+
     public function test_invalid_amount_period_and_assignment_are_rejected(): void
     {
         $owner = $this->createOwner();
@@ -265,11 +865,6 @@ class OwnerRentalBillManagementTest extends TestCase
         $bill = $this->createBill($assignment);
         Sanctum::actingAs($owner);
 
-        $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
-            ...$this->billPayload($assignment),
-            'amount' => '0',
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['amount']);
         $this->postJson("/api/owner/tenants/{$tenant->id}/rental-bills", [
             ...$this->billPayload($assignment),
             'rental_period_start' => '2026-11-02',
@@ -325,7 +920,11 @@ class OwnerRentalBillManagementTest extends TestCase
         ]);
     }
 
-    private function createAssignment(Tenant $tenant, array $attributes = []): RoomAssignment
+    private function createAssignment(
+        Tenant $tenant,
+        array $attributes = [],
+        array $boardingHouseAttributes = []
+    ): RoomAssignment
     {
         $house = Boardinghouse::create([
             'owner_id' => $tenant->owner_id,
@@ -336,6 +935,7 @@ class OwnerRentalBillManagementTest extends TestCase
             'available_rooms' => 1,
             'total_rooms' => 1,
             'status' => 'approved',
+            ...$boardingHouseAttributes,
         ]);
         $room = $this->createRoom($house);
 
@@ -363,6 +963,7 @@ class OwnerRentalBillManagementTest extends TestCase
     private function createBill(RoomAssignment $assignment, array $attributes = []): RentalBill
     {
         return $assignment->rentalBills()->create([
+            'amount' => '5000.00',
             ...$this->billPayload($assignment),
             ...$attributes,
         ]);
@@ -372,7 +973,6 @@ class OwnerRentalBillManagementTest extends TestCase
     {
         return [
             'room_assignment_id' => $assignment->id,
-            'amount' => '5000.00',
             'rental_period_start' => '2026-11-01',
             'rental_period_end' => '2026-11-30',
             'due_date' => '2026-11-05',

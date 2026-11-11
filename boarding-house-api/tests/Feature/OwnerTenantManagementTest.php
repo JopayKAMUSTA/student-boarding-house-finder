@@ -393,7 +393,9 @@ class OwnerTenantManagementTest extends TestCase
 
         $previous->refresh();
         $this->assertSame('moved_out', $previous->status);
-        $this->assertSame('2026-11-05', $previous->move_out_date->toDateString());
+        $this->assertSame('2026-11-04', $previous->move_out_date->toDateString());
+        $newAssignment = RoomAssignment::findOrFail($response->json('data.id'));
+        $this->assertSame('2026-11-05', $newAssignment->move_in_date->toDateString());
         $this->assertDatabaseHas('room_assignments', [
             'id' => $response->json('data.id'),
             'status' => 'active',
@@ -401,6 +403,54 @@ class OwnerTenantManagementTest extends TestCase
         $this->getJson("/api/owner/tenants/{$tenant->id}")
             ->assertOk()
             ->assertJsonCount(2, 'data.assignments');
+    }
+
+    public function test_transfer_date_equal_to_current_move_in_date_is_rejected_without_changing_assignments(): void
+    {
+        $owner = $this->createOwner();
+        $house = $this->createBoardingHouse($owner);
+        $source = $this->createRoom($house);
+        $destination = $this->createRoom($house, ['room_number' => '102']);
+        $tenant = $this->createTenant($owner);
+        $previous = $this->createAssignment($tenant, $source);
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
+            'boarding_house_room_id' => $destination->id,
+            'move_in_date' => '2026-10-01',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['move_in_date']);
+
+        $this->assertDatabaseHas('room_assignments', [
+            'id' => $previous->id,
+            'status' => 'active',
+            'move_out_date' => null,
+        ]);
+        $this->assertDatabaseCount('room_assignments', 1);
+    }
+
+    public function test_transfer_date_earlier_than_current_move_in_date_is_rejected_without_changing_assignments(): void
+    {
+        $owner = $this->createOwner();
+        $house = $this->createBoardingHouse($owner);
+        $source = $this->createRoom($house);
+        $destination = $this->createRoom($house, ['room_number' => '102']);
+        $tenant = $this->createTenant($owner);
+        $previous = $this->createAssignment($tenant, $source);
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
+            'boarding_house_room_id' => $destination->id,
+            'move_in_date' => '2026-09-30',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['move_in_date']);
+
+        $this->assertDatabaseHas('room_assignments', [
+            'id' => $previous->id,
+            'status' => 'active',
+            'move_out_date' => null,
+        ]);
+        $this->assertDatabaseCount('room_assignments', 1);
     }
 
     public function test_transfer_to_another_boarding_house_is_rejected(): void

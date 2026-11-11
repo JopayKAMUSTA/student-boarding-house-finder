@@ -15,6 +15,8 @@ use App\Http\Controllers\AdminBoardinghouseController;
 use App\Http\Controllers\AdminOwnerController;
 use App\Http\Controllers\OwnerBoardingHouseRoomController;
 use App\Http\Controllers\OwnerRentalBillController;
+use App\Http\Controllers\OwnerRentalPaymentReviewController;
+use App\Http\Controllers\StudentRentalPaymentController;
 use App\Http\Controllers\OwnerTenantController;
 
 
@@ -294,6 +296,15 @@ Route::middleware('auth:sanctum')->post('/logout', function (Request $request){
 
 Route::middleware('auth:sanctum')->group(function() {
 
+    Route::post('/student/rental-bills/{bill}/payment-submissions', [
+        StudentRentalPaymentController::class,
+        'submit',
+    ]);
+    Route::get('/rental-payments/{payment}/proof', [
+        OwnerRentalPaymentReviewController::class,
+        'proof',
+    ]);
+
     Route::get('/student-profile', function(Request $request){
         $user = $request->user();
 
@@ -423,9 +434,25 @@ Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
     Route::post('/tenants/{tenant}/transfer', [OwnerTenantController::class, 'transfer']);
     Route::patch('/tenants/{tenant}/move-out', [OwnerTenantController::class, 'moveOut']);
     Route::get('/rental-bills', [OwnerRentalBillController::class, 'index']);
+    Route::get('/rental-payment-submissions', [
+        OwnerRentalPaymentReviewController::class,
+        'index',
+    ]);
+    Route::patch('/rental-payments/{payment}/approve', [
+        OwnerRentalPaymentReviewController::class,
+        'approve',
+    ]);
+    Route::patch('/rental-payments/{payment}/reject', [
+        OwnerRentalPaymentReviewController::class,
+        'reject',
+    ]);
     Route::post('/tenants/{tenant}/rental-bills', [
         OwnerRentalBillController::class,
         'store',
+    ]);
+    Route::get('/rental-bills/generation-status', [
+        OwnerRentalBillController::class,
+        'generationStatus',
     ]);
     Route::get('/rental-bills/{bill}', [OwnerRentalBillController::class, 'show']);
     Route::post('/rental-bills/{bill}/payments', [
@@ -500,15 +527,19 @@ Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
         $validated = $request->validate([
             'name' => ['required','string','max:255'],
             'description' => ['nullable', 'string'],
+            'rules' => ['nullable', 'string', 'max:10000'],
             'city' => ['required', 'string', 'max:255'],
             'barangay' => ['nullable','string','max:100'],
             'address' => ['required','string','max:255'],
             'monthly_rent' => ['required', 'numeric', 'min:0'],
             'security_deposit' => ['nullable', 'numeric', 'min:0'],
             'advance_payment' => ['nullable', 'numeric', 'min:0'],
+            'late_payment_fee' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            'grace_period_days' => ['nullable', 'integer', 'min:0'],
             'available_rooms' => ['required', 'integer', 'min:0'],
             'total_rooms' => ['required', 'integer', 'min:1'],
             'room_type' => ['nullable', 'string', 'max:100'],
+            'billing_policy' => ['sometimes', 'required', 'string', 'in:full_monthly,prorated'],
             'amenities' => ['nullable', 'array'],
             'amenities.*' => ['string' , 'max:100'],
         ]);
@@ -525,6 +556,9 @@ Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
             'owner_id' => $request->user()->id,
             'security_deposit' => $validated['security_deposit'] ?? 0,
             'advance_payment' => $validated['advance_payment'] ?? 0,
+            'billing_policy' => $validated['billing_policy'] ?? 'full_monthly',
+            'late_payment_fee' => $validated['late_payment_fee'] ?? 0,
+            'grace_period_days' => $validated['grace_period_days'] ?? 0,
             'status' => 'pending',
         ]);
 
@@ -533,6 +567,68 @@ Route::middleware('auth:sanctum')->prefix('owner')->group(function () {
             'message' => 'Boarding house submitted for admin approval.',
             'data' => $boardingHouses,
         ], 201);
+    });
+
+    Route::patch('/boarding-houses/{boardingHouse}/settings', function (
+        Request $request,
+        Boardinghouse $boardingHouse
+    ) {
+        if ($request->user()->role !== 'owner') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only owners can update boarding-house settings.',
+            ], 403);
+        }
+
+        abort_unless(
+            (int) $boardingHouse->owner_id === (int) $request->user()->id,
+            404
+        );
+
+        $validated = $request->validate([
+            'late_payment_fee' => ['sometimes', 'required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            'grace_period_days' => ['sometimes', 'required', 'integer', 'min:0'],
+            'rules' => ['sometimes', 'nullable', 'string', 'max:10000'],
+        ]);
+
+        $boardingHouse->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Boarding-house settings updated successfully.',
+            'data' => $boardingHouse->refresh(),
+        ]);
+    });
+
+    Route::patch('/boarding-houses/{boardingHouse}/billing-policy', function (
+        Request $request,
+        Boardinghouse $boardingHouse
+    ) {
+        if ($request->user()->role !== 'owner') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only owners can update boarding-house billing policies.',
+            ], 403);
+        }
+
+        abort_unless(
+            (int) $boardingHouse->owner_id === (int) $request->user()->id,
+            404
+        );
+
+        $validated = $request->validate([
+            'billing_policy' => ['required', 'string', 'in:full_monthly,prorated'],
+        ]);
+
+        $boardingHouse->update([
+            'billing_policy' => $validated['billing_policy'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Boarding-house billing policy updated successfully.',
+            'data' => $boardingHouse->refresh(),
+        ]);
     });
 });
 

@@ -4,13 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\RentalBill;
 use App\Models\RentalPayment;
-use App\Models\RoomAssignment;
 use App\Models\Tenant;
+use App\Services\RentalBillBalanceCalculator;
+use App\Services\RentalBillGenerator;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +22,7 @@ class OwnerRentalBillController extends Controller
         $validated = $request->validate([
             'tenant_id' => ['nullable', 'integer'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'month' => ['nullable', 'date_format:Y-m'],
         ]);
 
         $bills = RentalBill::query()
@@ -36,6 +37,13 @@ class OwnerRentalBillController extends Controller
                     fn (Builder $assignmentQuery) => $assignmentQuery->where(
                         'tenant_id',
                         $validated['tenant_id']
+                    )
+                )
+                ->when(
+                    isset($validated['month']),
+                    fn (Builder $query) => $query->whereDate(
+                        'rental_period_start',
+                        $validated['month'].'-01'
                     )
                 )
             )
@@ -54,6 +62,61 @@ class OwnerRentalBillController extends Controller
         ]);
     }
 
+    public function generationStatus(Request $request): JsonResponse
+    {
+        $this->authorizeOwner($request);
+        $validated = $request->validate([
+            'month' => ['nullable', 'date_format:Y-m'],
+        ]);
+        $timezone = config('app.timezone', 'UTC');
+        $month = $validated['month'] ?? now($timezone)->format('Y-m');
+        abort_if($month > now($timezone)->format('Y-m'), 422, 'Future months cannot be reconciled.');
+        $periodStart = $month.'-01';
+        $periodEnd = \Illuminate\Support\Carbon::parse($periodStart, $timezone)
+            ->endOfMonth()
+            ->toDateString();
+
+        $assignmentIds = \App\Models\RoomAssignment::query()
+            ->whereIn('status', ['active', 'moved_out'])
+            ->whereDate('move_in_date', '<=', $periodEnd)
+            ->where(fn (Builder $query) => $query
+                ->whereNull('move_out_date')
+                ->orWhereDate('move_out_date', '>=', $periodStart))
+            ->whereHas(
+                'tenant',
+                fn (Builder $query) => $query->where('owner_id', $request->user()->id)
+            )
+            ->whereHas(
+                'boardingHouseRoom.boardingHouse',
+                fn (Builder $query) => $query->where('status', 'approved')
+            )
+            ->pluck('id');
+        $eligible = $assignmentIds->count();
+        $generated = $eligible === 0
+            ? 0
+            : RentalBill::query()
+                ->whereIn('room_assignment_id', $assignmentIds)
+                ->whereDate('rental_period_start', $periodStart)
+                ->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'month' => $month,
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+                'eligible_assignments' => $eligible,
+                'generated_bills' => $generated,
+                'missing_bills' => max(0, $eligible - $generated),
+                'status' => $eligible === 0
+                    ? 'no_assignments'
+                    : ($generated >= $eligible ? 'complete' : 'pending_generation'),
+                'scheduled_time' => '01:00',
+                'timezone' => $timezone,
+            ],
+        ]);
+    }
+
     public function store(Request $request, Tenant $tenant): JsonResponse
     {
         $this->authorizeTenant($request, $tenant);
@@ -63,77 +126,18 @@ class OwnerRentalBillController extends Controller
                 'integer',
                 'exists:room_assignments,id',
             ],
-            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:99999999.99'],
             'rental_period_start' => ['required', 'date_format:Y-m-d'],
             'rental_period_end' => ['required', 'date_format:Y-m-d', 'after_or_equal:rental_period_start'],
             'due_date' => ['required', 'date_format:Y-m-d'],
         ]);
 
-        $periodStart = Carbon::createFromFormat('Y-m-d', $validated['rental_period_start']);
-        $periodEnd = Carbon::createFromFormat('Y-m-d', $validated['rental_period_end']);
-        if (
-            $periodStart->day !== 1 ||
-            $periodEnd->day !== $periodEnd->daysInMonth ||
-            $periodStart->format('Y-m') !== $periodEnd->format('Y-m')
-        ) {
-            throw ValidationException::withMessages([
-                'rental_period_start' => [
-                    'A rental bill must cover one complete calendar month.',
-                ],
-            ]);
-        }
-
-        try {
-            /** @var RentalBill $bill */
-            $bill = DB::transaction(function () use ($request, $tenant, $validated) {
-                $lockedTenant = Tenant::query()
-                    ->where('owner_id', $request->user()->id)
-                    ->lockForUpdate()
-                    ->findOrFail($tenant->id);
-                /** @var RoomAssignment $assignment */
-                $assignment = $lockedTenant->assignments()
-                    ->whereKey($validated['room_assignment_id'])
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                if (
-                    $assignment->move_in_date->gt($validated['rental_period_end']) ||
-                    ($assignment->move_out_date &&
-                        $assignment->move_out_date->lt($validated['rental_period_start']))
-                ) {
-                    throw ValidationException::withMessages([
-                        'room_assignment_id' => [
-                            'The rental period does not overlap this room assignment.',
-                        ],
-                    ]);
-                }
-
-                $duplicate = RentalBill::query()
-                    ->where('room_assignment_id', $assignment->id)
-                    ->whereDate('rental_period_start', $validated['rental_period_start'])
-                    ->exists();
-                if ($duplicate) {
-                    throw ValidationException::withMessages([
-                        'rental_period_start' => [
-                            'A bill already exists for this assignment and rental month.',
-                        ],
-                    ]);
-                }
-
-                return $assignment->rentalBills()->create([
-                    'amount' => $validated['amount'],
-                    'rental_period_start' => $validated['rental_period_start'],
-                    'rental_period_end' => $validated['rental_period_end'],
-                    'due_date' => $validated['due_date'],
-                ]);
-            });
-        } catch (UniqueConstraintViolationException) {
-            throw ValidationException::withMessages([
-                'rental_period_start' => [
-                    'A bill already exists for this assignment and rental month.',
-                ],
-            ]);
-        }
+        $bill = app(RentalBillGenerator::class)->generate(
+            (int) $validated['room_assignment_id'],
+            $validated['rental_period_start'],
+            $validated['rental_period_end'],
+            $validated['due_date'],
+            tenantId: (int) $tenant->id
+        );
 
         return response()->json([
             'success' => true,
@@ -178,7 +182,13 @@ class OwnerRentalBillController extends Controller
                 'payments',
                 $lockedBill->payments()->lockForUpdate()->get()
             );
-            $balance = $lockedBill->balanceInCents();
+            $paymentDate = CarbonImmutable::parse(
+                $validated['payment_date'],
+                config('app.timezone', 'UTC')
+            )->startOfDay();
+            $calculator = app(RentalBillBalanceCalculator::class);
+            $summary = $calculator->calculate($lockedBill, $paymentDate);
+            $balance = $summary['_total_outstanding_cents'];
             if ($balance === 0) {
                 throw ValidationException::withMessages([
                     'bill' => ['The bill has already been paid in full.'],
@@ -192,8 +202,33 @@ class OwnerRentalBillController extends Controller
                 ]);
             }
 
+            $latestPaymentDate = $lockedBill->payments
+                ->where('status', 'approved')
+                ->whereNull('voided_at')
+                ->map(fn (RentalPayment $existingPayment): string =>
+                    $existingPayment->payment_date->toDateString()
+                )
+                ->push($paymentDate->toDateString())
+                ->max();
+            $historySummary = $calculator->calculate(
+                $lockedBill,
+                CarbonImmutable::parse($latestPaymentDate, config('app.timezone', 'UTC')),
+                [
+                    'amount' => $validated['amount'],
+                    'payment_date' => $validated['payment_date'],
+                ]
+            );
+            if ($historySummary['has_overpayment']) {
+                throw ValidationException::withMessages([
+                    'amount' => [
+                        'The payment would make the dated payment history exceed the bill balance.',
+                    ],
+                ]);
+            }
+
             return $lockedBill->payments()->create([
                 'amount' => $validated['amount'],
+                'status' => 'approved',
                 'payment_date' => $validated['payment_date'],
                 'notes' => $validated['notes'] ?? null,
                 'recorded_by' => $request->user()->id,
@@ -289,6 +324,7 @@ class OwnerRentalBillController extends Controller
             'roomAssignment.tenant',
             'roomAssignment.boardingHouseRoom.boardingHouse',
             'payments.recordedBy:id,name',
+            'payments.reviewedBy:id,name',
             'payments.voidedBy:id,name',
             'voidedBy:id,name',
         ]);
