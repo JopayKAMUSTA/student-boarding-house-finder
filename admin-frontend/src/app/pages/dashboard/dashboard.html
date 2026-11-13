@@ -1,65 +1,252 @@
 
 <div class="dashboard">
-  <div class="welcome">
+
+  <!-- Header -->
+  <header class="welcome">
     <div>
+      <span class="eyebrow">TAGSTAY / ADMINISTRATION</span>
       <h1>Dashboard Overview</h1>
       <p>Welcome to your TagStay administration dashboard.</p>
     </div>
-    <span class="date-label">ADMINISTRATOR PANEL</span>
+
+    <div class="header-right">
+      <span class="date-label">ADMINISTRATOR PANEL</span>
+
+      <button
+        type="button"
+        class="refresh-button"
+        (click)="refreshDashboard()"
+        [disabled]="isLoading">
+        <span class="refresh-icon">↻</span>
+        {{ isLoading ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+  </header>
+
+  <!-- Last Updated -->
+  <div class="dashboard-meta" *ngIf="lastUpdated">
+    <span class="online-dot"></span>
+    Dashboard updated
+    <span class="meta-separator">·</span>
+    {{ lastUpdated | date:'medium' }}
   </div>
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-icon blue">♙</div>
-      <p>Total Users</p>
-      <h2>0</h2>
-      <small>Registered accounts</small>
+  <!-- Error Message -->
+  <div class="error-message" *ngIf="errorMessage">
+    <div>
+      <strong>Dashboard unavailable</strong>
+      <p>{{ errorMessage }}</p>
     </div>
 
-    <div class="stat-card">
-      <div class="stat-icon orange">⌂</div>
-      <p>Boarding Houses</p>
-      <h2>0</h2>
-      <small>Total submitted listings</small>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon green">✓</div>
-      <p>Approved Listings</p>
-      <h2>0</h2>
-      <small>Available to students</small>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon purple">◷</div>
-      <p>Pending Approvals</p>
-      <h2>0</h2>
-      <small>Awaiting admin review</small>
-    </div>
+    <button
+      type="button"
+      (click)="refreshDashboard()">
+      Retry
+    </button>
   </div>
 
-  <div class="content-grid">
-    <div class="panel">
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading && !hasLoaded">
+    <div class="spinner"></div>
+    <h3>Loading dashboard...</h3>
+    <p>Retrieving the latest TagStay information.</p>
+  </div>
+
+  <!-- Dashboard Content -->
+  <ng-container *ngIf="hasLoaded || !isLoading">
+
+    <!-- Platform Statistics -->
+    <section class="stats-section">
+
+      <div class="section-heading">
+        <div>
+          <h2>Platform statistics</h2>
+          <p>Overview of your platform's current performance.</p>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+
+        <!-- Total Users -->
+        <article class="stat-card">
+          <div class="stat-top">
+            <div class="stat-icon blue">U</div>
+            <span class="stat-category">ACCOUNTS</span>
+          </div>
+
+          <p>Total Users</p>
+          <h2>{{ stats.total_users | number }}</h2>
+          <small>Registered accounts</small>
+        </article>
+
+        <!-- Boarding Houses -->
+        <article class="stat-card">
+          <div class="stat-top">
+            <div class="stat-icon orange">B</div>
+            <span class="stat-category">PROPERTIES</span>
+          </div>
+
+          <p>Boarding Houses</p>
+          <h2>{{ stats.total_boarding_houses | number }}</h2>
+          <small>Total submitted listings</small>
+        </article>
+
+        <!-- Approved Listings -->
+        <article class="stat-card">
+          <div class="stat-top">
+            <div class="stat-icon green">A</div>
+            <span class="stat-category">APPROVALS</span>
+          </div>
+
+          <p>Approved Listings</p>
+          <h2>{{ stats.approved_listings | number }}</h2>
+          <small>Available to students</small>
+        </article>
+
+        <!-- Pending Approvals -->
+        <article class="stat-card">
+          <div class="stat-top">
+            <div class="stat-icon purple">P</div>
+            <span class="stat-category">REVIEW QUEUE</span>
+          </div>
+
+          <p>Pending Approvals</p>
+          <h2>{{ stats.pending_approvals | number }}</h2>
+          <small>Awaiting admin review</small>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- Listing Approval Overview -->
+    <section class="listing-overview panel">
+
       <div class="panel-heading">
-        <h3>Recent Boarding House Submissions</h3>
-        <a routerLink="/boarding-houses">View all</a>
+        <div>
+          <h3>Listing approval overview</h3>
+          <p>Current approval progress for boarding house listings.</p>
+        </div>
+
+        <a routerLink="/boarding-houses">
+          Manage listings
+        </a>
       </div>
 
-      <div class="empty-state">
-        <div class="empty-icon">⌂</div>
-        <h4>No submissions yet</h4>
-        <p>New boarding house submissions will appear here.</p>
-      </div>
-    </div>
+      <div class="approval-summary">
 
-    <div class="panel activity-panel">
-      <div class="panel-heading">
-        <h3>System Activity</h3>
+        <!-- Approved -->
+        <div class="approval-item">
+
+          <div class="approval-label">
+            <span class="legend approved-legend"></span>
+            Approved listings
+          </div>
+
+          <strong>{{ stats.approved_listings | number }}</strong>
+
+          <div class="progress-track">
+            <div
+              class="progress-fill approved-fill"
+              [style.width.%]="approvedPercentage">
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Pending -->
+        <div class="approval-item">
+
+          <div class="approval-label">
+            <span class="legend pending-legend"></span>
+            Pending approvals
+          </div>
+
+          <strong>{{ stats.pending_approvals | number }}</strong>
+
+          <div class="progress-track">
+            <div
+              class="progress-fill pending-fill"
+              [style.width.%]="pendingPercentage">
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Recent Boarding House Submissions -->
+    <section class="content-grid">
+
+      <div class="panel submissions-panel">
+
+        <div class="panel-heading">
+          <div>
+            <h3>Recent Boarding House Submissions</h3>
+            <p>Latest properties submitted by owners.</p>
+          </div>
+
+          <a routerLink="/boarding-houses">
+            View all
+          </a>
+        </div>
+
+        <!-- Empty State -->
+        <div
+          class="empty-state"
+          *ngIf="recentSubmissions.length === 0">
+
+          <div class="empty-icon">B</div>
+          <h4>No submissions yet</h4>
+          <p>New boarding house submissions will appear here.</p>
+
+        </div>
+
+        <!-- Submission List -->
+        <div
+          class="submission-list"
+          *ngIf="recentSubmissions.length > 0">
+
+          <article
+            class="submission-item"
+            *ngFor="let house of recentSubmissions">
+
+            <div class="house-icon">⌂</div>
+
+            <div class="house-details">
+              <h4>{{ house.name }}</h4>
+
+              <p>
+                {{ house.city || 'Location not specified' }}
+              </p>
+
+              <span class="house-date">
+                Submitted {{ house.created_at | date:'mediumDate' }}
+              </span>
+            </div>
+
+            <div class="house-right">
+
+              <strong>
+                {{ house.monthly_rent | currency:'PHP':'symbol':'1.0-0' }}
+              </strong>
+
+              <span
+                class="status-badge"
+                [ngClass]="getStatusClass(house.status)">
+                {{ house.status || 'Unknown' }}
+              </span>
+
+            </div>
+
+          </article>
+
+        </div>
+
       </div>
 
-      <div class="empty-state">
-        <p>No recent activity.</p>
-      </div>
-    </div>
-  </div>
+    </section>
+
+  </ng-container>
+
 </div>

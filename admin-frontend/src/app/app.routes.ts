@@ -7,6 +7,8 @@ import { Login } from './pages/login/login';
 import { Users } from './pages/users/users';
 import { OwnerVerification } from './pages/owner-verification/owner-verification';
 import { BoardingHouses } from './pages/boarding-houses/boarding-houses';
+import { Reports } from './pages/reports/reports';
+import { Settings } from './settings/settings';
 import { authGuard } from './guards/auth-guard';
 
 export const routes: Routes = [
@@ -51,6 +53,16 @@ export const routes: Routes = [
       {
         path: 'boarding-houses/:boardingHouseId',
         component: BoardingHouses
+      },
+
+      {
+        path: 'reports',
+        component: Reports
+      },
+
+      {
+        path: 'settings',
+        component: Settings
       },
 
       {

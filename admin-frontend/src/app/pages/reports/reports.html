@@ -1,1 +1,116 @@
-<p>reports works!</p>
+
+<div class="reports-page">
+
+  <div class="page-header">
+    <div>
+      <h1>Reports & Analytics</h1>
+      <p>Overview of users and boarding house activities.</p>
+    </div>
+
+    <button class="refresh-btn" (click)="loadReports()" [disabled]="loading">
+      {{ loading ? 'Loading...' : 'Refresh Reports' }}
+    </button>
+  </div>
+
+  <div *ngIf="loading" class="message loading">
+    Loading reports...
+  </div>
+
+  <div *ngIf="errorMessage" class="message error">
+    {{ errorMessage }}
+  </div>
+
+  <ng-container *ngIf="reports && !loading">
+
+    <h2 class="section-title">User Statistics</h2>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-label">Total Users</span>
+        <h2>{{ reports.users.total }}</h2>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-label">Students</span>
+        <h2>{{ reports.users.students }}</h2>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-label">Owners</span>
+        <h2>{{ reports.users.owners }}</h2>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-label">Administrators</span>
+        <h2>{{ reports.users.admins }}</h2>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-label">Active Users</span>
+        <h2>{{ reports.users.active }}</h2>
+      </div>
+    </div>
+
+    <h2 class="section-title">Boarding House Statistics</h2>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-label">Total Boarding Houses</span>
+        <h2>{{ reports.boarding_houses.total }}</h2>
+      </div>
+
+      <div class="stat-card pending">
+        <span class="stat-label">Pending</span>
+        <h2>{{ reports.boarding_houses.pending }}</h2>
+      </div>
+
+      <div class="stat-card approved">
+        <span class="stat-label">Approved</span>
+        <h2>{{ reports.boarding_houses.approved }}</h2>
+      </div>
+
+      <div class="stat-card rejected">
+        <span class="stat-label">Rejected</span>
+        <h2>{{ reports.boarding_houses.rejected }}</h2>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <h2>Monthly Overview</h2>
+          <p>User and boarding house registrations</p>
+        </div>
+
+        <span class="year-label">{{ reports.year }}</span>
+      </div>
+
+      <div class="chart-legend">
+        <span><i class="legend-dot users-dot"></i> Users</span>
+        <span><i class="legend-dot houses-dot"></i> Boarding Houses</span>
+      </div>
+
+      <div class="chart">
+        <div class="chart-item" *ngFor="let item of reports.monthly_reports">
+          <div class="bars">
+            <div
+              class="bar users-bar"
+              [style.height.%]="getBarHeight(item.users)"
+              [title]="'Users: ' + item.users">
+            </div>
+
+            <div
+              class="bar houses-bar"
+              [style.height.%]="getBarHeight(item.boarding_houses)"
+              [title]="'Boarding Houses: ' + item.boarding_houses">
+            </div>
+          </div>
+
+          <span class="month-label">{{ item.month }}</span>
+        </div>
+      </div>
+    </div>
+
+  </ng-container>
+
+</div>

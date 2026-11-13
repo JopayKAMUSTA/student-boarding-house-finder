@@ -1,0 +1,301 @@
+
+<div class="settings-page">
+
+  <div class="page-header">
+    <div>
+      <span class="eyebrow">TAGSTAY / ADMINISTRATION</span>
+      <h1>System Settings</h1>
+      <p>Manage your application preferences, security, and notifications.</p>
+    </div>
+  </div>
+
+  <div class="settings-layout">
+
+    <!-- SETTINGS NAVIGATION -->
+    <aside class="settings-navigation">
+      <h3>Settings Menu</h3>
+
+      <button
+        type="button"
+        [class.active]="activeSection === 'general'"
+        (click)="setActiveSection('general')">
+        <span class="nav-icon">⚙</span>
+        <span>
+          <strong>General Settings</strong>
+          <small>System information and contact</small>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        [class.active]="activeSection === 'security'"
+        (click)="setActiveSection('security')">
+        <span class="nav-icon">♙</span>
+        <span>
+          <strong>Account & Security</strong>
+          <small>Administrator password</small>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        [class.active]="activeSection === 'notifications'"
+        (click)="setActiveSection('notifications')">
+        <span class="nav-icon">♧</span>
+        <span>
+          <strong>Notifications</strong>
+          <small>System alerts and updates</small>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        [class.active]="activeSection === 'information'"
+        (click)="setActiveSection('information')">
+        <span class="nav-icon">ⓘ</span>
+        <span>
+          <strong>System Information</strong>
+          <small>Application details</small>
+        </span>
+      </button>
+    </aside>
+
+    <!-- SETTINGS CONTENT -->
+    <main class="settings-content">
+
+      <!-- GENERAL SETTINGS -->
+      <section *ngIf="activeSection === 'general'" class="settings-card">
+
+        <div class="section-heading">
+          <div>
+            <h2>General Settings</h2>
+            <p>Configure the basic information of your TagStay application.</p>
+          </div>
+          <span class="section-icon">⚙</span>
+        </div>
+
+        <div class="form-group">
+          <label for="systemName">System Name</label>
+          <input
+            id="systemName"
+            type="text"
+            [(ngModel)]="generalSettings.systemName"
+            placeholder="Enter system name">
+          <small>Name displayed throughout the application.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="contactEmail">Contact Email</label>
+          <input
+            id="contactEmail"
+            type="email"
+            [(ngModel)]="generalSettings.contactEmail"
+            placeholder="admin@example.com">
+          <small>Email address for system-related inquiries.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="contactNumber">Contact Number</label>
+          <input
+            id="contactNumber"
+            type="text"
+            [(ngModel)]="generalSettings.contactNumber"
+            placeholder="Enter contact number">
+          <small>Official TagStay contact number.</small>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-secondary" type="button" (click)="resetGeneralSettings()">
+            Reset
+          </button>
+          <button class="btn-primary" type="button" (click)="saveGeneralSettings()">
+            Save Changes
+          </button>
+        </div>
+
+      </section>
+
+      <!-- ACCOUNT AND SECURITY -->
+      <section *ngIf="activeSection === 'security'" class="settings-card">
+
+        <div class="section-heading">
+          <div>
+            <h2>Account & Security</h2>
+            <p>Change your administrator account password.</p>
+          </div>
+          <span class="section-icon">♙</span>
+        </div>
+
+        <div class="security-notice">
+          <strong>Password Security</strong>
+          <p>Use a strong password containing at least 8 characters.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="currentPassword">Current Password</label>
+          <input
+            id="currentPassword"
+            type="password"
+            [(ngModel)]="currentPassword"
+            autocomplete="current-password"
+            placeholder="Enter current password">
+        </div>
+
+        <div class="form-group">
+          <label for="newPassword">New Password</label>
+          <input
+            id="newPassword"
+            type="password"
+            [(ngModel)]="newPassword"
+            autocomplete="new-password"
+            placeholder="Enter new password">
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">Confirm New Password</label>
+          <input
+            id="confirmPassword"
+            type="password"
+            [(ngModel)]="confirmPassword"
+            autocomplete="new-password"
+            placeholder="Confirm new password">
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-secondary" type="button" (click)="resetPasswordForm()">
+            Clear
+          </button>
+          <button class="btn-primary" type="button" (click)="changePassword()">
+            Update Password
+          </button>
+        </div>
+
+      </section>
+
+      <!-- NOTIFICATIONS -->
+      <section *ngIf="activeSection === 'notifications'" class="settings-card">
+
+        <div class="section-heading">
+          <div>
+            <h2>Notification Settings</h2>
+            <p>Choose which system events you want to receive alerts for.</p>
+          </div>
+          <span class="section-icon">♧</span>
+        </div>
+
+        <div class="notification-item">
+          <div>
+            <strong>New Boarding House Submissions</strong>
+            <p>Receive an alert when an owner submits a new boarding house.</p>
+          </div>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              [(ngModel)]="notificationSettings.newBoardingHouse">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="notification-item">
+          <div>
+            <strong>Owner Verification Requests</strong>
+            <p>Receive an alert when an owner submits verification documents.</p>
+          </div>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              [(ngModel)]="notificationSettings.ownerVerification">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="notification-item">
+          <div>
+            <strong>New Account Registrations</strong>
+            <p>Receive an alert when a new user registers.</p>
+          </div>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              [(ngModel)]="notificationSettings.accountRegistration">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-primary" type="button" (click)="saveNotificationSettings()">
+            Save Preferences
+          </button>
+        </div>
+
+      </section>
+
+      <!-- SYSTEM INFORMATION -->
+      <section *ngIf="activeSection === 'information'" class="settings-card">
+
+        <div class="section-heading">
+          <div>
+            <h2>System Information</h2>
+            <p>Application details and technical information.</p>
+          </div>
+          <span class="section-icon">ⓘ</span>
+        </div>
+
+        <div class="information-list">
+
+          <div class="information-row">
+            <span>Application Name</span>
+            <strong>TagStay</strong>
+          </div>
+
+          <div class="information-row">
+            <span>Application Type</span>
+            <strong>Boarding House Finder</strong>
+          </div>
+
+          <div class="information-row">
+            <span>Administrator Portal</span>
+            <strong>Angular Web Application</strong>
+          </div>
+
+          <div class="information-row">
+            <span>Backend Framework</span>
+            <strong>Laravel 12</strong>
+          </div>
+
+          <div class="information-row">
+            <span>Database</span>
+            <strong>MySQL</strong>
+          </div>
+
+          <div class="information-row">
+            <span>Database Connection</span>
+            <strong class="status-pending">Not checked</strong>
+          </div>
+
+          <div class="information-row">
+            <span>Application Version</span>
+            <strong>1.0.0</strong>
+          </div>
+
+        </div>
+
+        <div class="information-note">
+          Database connection status will be connected to the Laravel API in a later step.
+        </div>
+
+      </section>
+
+      <!-- FEEDBACK MESSAGES -->
+      <div *ngIf="successMessage" class="alert success-alert">
+        {{ successMessage }}
+      </div>
+
+      <div *ngIf="errorMessage" class="alert error-alert">
+        {{ errorMessage }}
+      </div>
+
+    </main>
+
+  </div>
+</div>
