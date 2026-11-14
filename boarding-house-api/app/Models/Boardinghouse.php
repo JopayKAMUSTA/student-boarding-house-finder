@@ -52,4 +52,14 @@ class Boardinghouse extends Model
     {
         return $this->hasMany(BoardinghouseRoom::class, 'boarding_house_id');
     }
+
+    public function paymentMethods(): HasMany
+    {
+        return $this->hasMany(BoardingHousePaymentMethod::class, 'boarding_house_id');
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'boarding_house_id');
+    }
 }

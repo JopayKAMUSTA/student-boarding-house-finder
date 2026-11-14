@@ -6,6 +6,7 @@ import { RoomForm } from './pages/rooms/room-form';
 import { RoomDetails } from './pages/rooms/room-details';
 import { RoomManagement } from './pages/rooms/room-management';
 import { TenantManagement } from './pages/tenants/tenant-management';
+import { OwnerMessages } from './pages/messages/owner-messages';
 import { OwnerLayout } from './layouts/owner-layout';
 import { ownerAuthGuard } from './guards/owner-auth.guard';
 import { routes } from './app.routes';
@@ -47,6 +48,11 @@ describe('owner routes', () => {
       .toBe(TenantManagement);
     expect(routes.find((route) => route.component === OwnerLayout)?.canActivate)
       .toContain(ownerAuthGuard);
+  });
+
+  it('routes Owner Messages inside the shared owner layout', () => {
+    expect(ownerRoutes.find((route) => route.path === 'owner/messages')?.component)
+      .toBe(OwnerMessages);
   });
 
   it('keeps the other owner pages inside the shared layout', () => {

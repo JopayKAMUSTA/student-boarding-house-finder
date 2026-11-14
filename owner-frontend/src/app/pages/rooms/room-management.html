@@ -1,22 +1,41 @@
+
 <div class="room-management-page">
-  <a class="back-link" routerLink="/boarding-houses">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
-    Back to My Boarding Houses
-  </a>
+
+<a class="back-link" routerLink="/boarding-houses">
+  Back to My Boarding Houses
+</a>
 
   <header class="room-page-header">
-    <div>
+    <div class="header-content">
+      <span class="eyebrow">PROPERTY MANAGEMENT</span>
       <h1>Room Management</h1>
-      <h2 *ngIf="boardingHouse">{{ boardingHouse.name }}</h2>
-      <p *ngIf="boardingHouse">
-        {{ boardingHouse.address }}
-        <span *ngIf="boardingHouse.barangay">, {{ boardingHouse.barangay }}</span>,
-        {{ boardingHouse.city }}
+
+      <div class="property-info" *ngIf="boardingHouse">
+        <h2>{{ boardingHouse.name }}</h2>
+        <p>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/>
+            <circle cx="12" cy="10" r="2.5"/>
+          </svg>
+          <span>
+            {{ boardingHouse.address }}
+            <span *ngIf="boardingHouse.barangay">, {{ boardingHouse.barangay }}</span>,
+            {{ boardingHouse.city }}
+          </span>
+        </p>
+      </div>
+
+      <p class="header-description" *ngIf="!boardingHouse">
+        Manage the rooms available in your boarding house.
       </p>
     </div>
-    <a *ngIf="boardingHouse" class="btn btn-primary"
+
+    <a *ngIf="boardingHouse"
+      class="btn btn-primary add-room-button"
       [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', 'new']">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
       Add Room
     </a>
   </header>
@@ -27,92 +46,202 @@
   </p>
 
   <p *ngIf="deletingRoomId !== null" role="status" class="notice">
+    <span class="spinner" aria-hidden="true"></span>
     Deleting room and its photos...
   </p>
 
   <div *ngIf="errorMessage" role="alert" class="notice notice-error">
-    <p>{{ errorMessage }}</p>
-    <button type="button" class="btn btn-outline" (click)="loadRooms()" [disabled]="isLoading">
+    <div>
+      <strong>Unable to load rooms</strong>
+      <p>{{ errorMessage }}</p>
+    </div>
+    <button type="button" class="btn btn-outline"
+      (click)="loadRooms()" [disabled]="isLoading">
       Try Again
     </button>
   </div>
 
-  <p *ngIf="photoError" role="status" class="notice notice-warn">{{ photoError }}</p>
+  <p *ngIf="photoError" role="status" class="notice notice-warn">
+    {{ photoError }}
+  </p>
 
-  <section class="empty" *ngIf="!isLoading && !errorMessage && rooms.length === 0">
+  <section class="empty"
+    *ngIf="!isLoading && !errorMessage && rooms.length === 0">
+
     <span class="empty-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M4 20V9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11M4 20h16M9 13h6"/></svg>
+      <svg viewBox="0 0 24 24">
+        <path d="M4 20V9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11M4 20h16M9 13h6"/>
+      </svg>
     </span>
+
     <h2>No rooms added yet</h2>
-    <p>Add rooms for this boarding house. Existing property information will remain unchanged.</p>
+    <p>
+      Start organizing your boarding house by adding your first room.
+      Your existing property information will remain unchanged.
+    </p>
+
     <a class="btn btn-primary"
-      [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', 'new']">Add your first room</a>
+      [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', 'new']">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+      Add Your First Room
+    </a>
   </section>
 
   <section *ngIf="!isLoading && rooms.length > 0"
     aria-label="Rooms in this boarding house">
-    <p class="count">{{ total }} room{{ total === 1 ? '' : 's' }}</p>
+
+    <div class="list-heading">
+      <div>
+        <h2>Your Rooms</h2>
+        <p>Manage room information, availability, and occupancy.</p>
+      </div>
+      <span class="room-count">
+        {{ total }} {{ total === 1 ? 'Room' : 'Rooms' }}
+      </span>
+    </div>
 
     <div class="room-list">
+
       <article *ngFor="let room of rooms" class="room-card">
+
         <div class="room-photo">
-          <img *ngIf="room.images.length && imageUrls[room.images[0].id]"
+          <img *ngIf="room.images.length && imageUrls[room.images[0].id] &&
+              !imageLoadFailures.has(room.images[0].id)"
             [src]="imageUrls[room.images[0].id]"
-            [alt]="'Photo of room ' + room.room_number" loading="lazy" />
-          <span class="no-photo" *ngIf="!room.images.length" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 16l-5-5-9 8"/></svg>
-            No photo
+            [alt]="'Photo of room ' + room.room_number"
+            loading="lazy"
+            (error)="onRoomImageError(room.images[0].id)" />
+
+          <span class="no-photo" *ngIf="!room.images.length ||
+              imageLoadFailures.has(room.images[0].id)"
+            aria-live="polite">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="2"/>
+              <circle cx="9" cy="11" r="2"/>
+              <path d="M21 16l-5-5-9 8"/>
+            </svg>
+            {{ room.images.length ? 'Photo unavailable' : 'No photo available' }}
           </span>
-          <span class="photo-count" *ngIf="room.images.length > 1">{{ room.images.length }} photos</span>
+
+          <span class="no-photo"
+            *ngIf="room.images.length &&
+              !imageUrls[room.images[0].id] &&
+              !imageLoadFailures.has(room.images[0].id)"
+            role="status">
+            <span class="spinner"></span>
+            Loading photo...
+          </span>
+
+          <span class="photo-count" *ngIf="room.images.length > 1">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2"/>
+              <circle cx="9" cy="11" r="2"/>
+              <path d="M21 16l-5-5-9 8"/>
+            </svg>
+            {{ room.images.length }} photos
+          </span>
         </div>
 
         <div class="room-details">
+
           <div class="room-top">
-            <h2>{{ room.room_number }}</h2>
-            <span class="badge" [attr.data-status]="formatAvailability(room.availability_status) | lowercase">
+            <div>
+              <span class="room-label">ROOM NUMBER</span>
+              <h3>{{ room.room_number }}</h3>
+            </div>
+
+            <span class="badge"
+              [attr.data-status]="formatAvailability(room.availability_status) | lowercase">
               {{ formatAvailability(room.availability_status) | titlecase }}
             </span>
           </div>
 
-          <p class="room-type">{{ room.room_type }} &middot; Up to {{ room.max_occupants }}
-            {{ room.max_occupants === 1 ? 'person' : 'people' }}</p>
+          <p class="room-type">{{ room.room_type }}</p>
 
-          <p class="rent">
-            <strong>{{ room.monthly_rent | currency:'PHP':'symbol':'1.0-0' }}</strong>
-            <small>{{ formatPricingBasis(room.pricing_basis) }}</small>
-          </p>
+          <div class="room-capacity">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Up to {{ room.max_occupants }}
+            {{ room.max_occupants === 1 ? 'person' : 'people' }}
+          </div>
 
-          <ul class="amenities" *ngIf="room.amenities?.length" aria-label="Amenities">
-            <li *ngFor="let amenity of room.amenities?.slice(0, 3)">{{ amenity }}</li>
+          <div class="rent-section">
+            <div>
+              <span class="rent-label">Monthly Rent</span>
+              <p class="rent">
+                <strong>{{ room.monthly_rent | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <small>{{ formatPricingBasis(room.pricing_basis) }}</small>
+              </p>
+            </div>
+          </div>
+
+          <ul class="amenities" *ngIf="room.amenities?.length"
+            aria-label="Amenities">
+            <li *ngFor="let amenity of room.amenities?.slice(0, 3)">
+              {{ amenity }}
+            </li>
             <li class="more" *ngIf="room.amenities && room.amenities.length > 3">
               +{{ room.amenities.length - 3 }} more
             </li>
           </ul>
+
         </div>
 
         <div class="room-actions">
           <a class="btn btn-outline"
             [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', room.id]">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
             View Details
           </a>
+
           <a class="btn btn-outline"
             [routerLink]="['/owner/boarding-houses', boardingHouseId, 'rooms', room.id, 'edit']">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m16 4 4 4M4 20l4-.8L19 8a2.8 2.8 0 0 0-4-4L4 15l0 5Z"/>
+            </svg>
             Edit Room
           </a>
-          <button type="button" class="btn btn-danger-outline" (click)="deleteRoom(room)"
+
+          <button type="button" class="btn btn-danger-outline"
+            (click)="deleteRoom(room)"
             [disabled]="deletingRoomId === room.id">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m4 4v6m6-6v6"/>
+            </svg>
             {{ deletingRoomId === room.id ? 'Deleting...' : 'Delete Room' }}
           </button>
         </div>
+
       </article>
     </div>
 
-    <nav *ngIf="lastPage > 1" aria-label="Room pages" class="room-pagination">
-      <button type="button" class="btn btn-outline" (click)="previousPage()"
-        [disabled]="isLoading || currentPage <= 1">Previous</button>
-      <span>Page {{ currentPage }} of {{ lastPage }}</span>
-      <button type="button" class="btn btn-outline" (click)="nextPage()"
-        [disabled]="isLoading || currentPage >= lastPage">Next</button>
+    <nav *ngIf="lastPage > 1" aria-label="Room pages"
+      class="room-pagination">
+
+      <button type="button" class="btn btn-outline"
+        (click)="previousPage()"
+        [disabled]="isLoading || currentPage <= 1">
+        Previous
+      </button>
+
+      <span>Page <strong>{{ currentPage }}</strong> of {{ lastPage }}</span>
+
+      <button type="button" class="btn btn-outline"
+        (click)="nextPage()"
+        [disabled]="isLoading || currentPage >= lastPage">
+        Next
+      </button>
+
     </nav>
+
   </section>
+
 </div>

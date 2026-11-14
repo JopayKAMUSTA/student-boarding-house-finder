@@ -11,6 +11,45 @@ use Illuminate\Validation\ValidationException;
 
 class RentalBillGenerator
 {
+    public function generateDueCyclesForAssignment(
+        int $assignmentId,
+        RentalBillingCycle $cycles,
+        ?Carbon $asOf = null
+    ): int {
+        $assignment = RoomAssignment::query()->findOrFail($assignmentId);
+        $today = ($asOf ?? Carbon::now(config('app.timezone', 'UTC')))
+            ->copy()
+            ->startOfDay();
+        $lastPeriodEnd = RentalBill::query()
+            ->where('room_assignment_id', $assignment->id)
+            ->max('rental_period_end');
+        $start = $cycles->firstStartAfter($assignment, $lastPeriodEnd);
+        $created = 0;
+
+        while ($start->lessThanOrEqualTo($today)) {
+            if (
+                $assignment->move_out_date &&
+                $assignment->move_out_date->lt($start)
+            ) {
+                break;
+            }
+
+            $dueDate = $cycles->nextStart($assignment, $start);
+            $bill = $this->generate(
+                (int) $assignment->id,
+                $start->toDateString(),
+                $cycles->endForStart($assignment, $start)->toDateString(),
+                $dueDate->toDateString(),
+                skipExisting: true,
+                requireApprovedHouse: true
+            );
+            $created += $bill !== null ? 1 : 0;
+            $start = $dueDate;
+        }
+
+        return $created;
+    }
+
     public function generate(
         int $assignmentId,
         string $periodStart,
@@ -38,14 +77,10 @@ class RentalBillGenerator
 
                 $start = Carbon::createFromFormat('Y-m-d', $periodStart)->startOfDay();
                 $end = Carbon::createFromFormat('Y-m-d', $periodEnd)->startOfDay();
-                if (
-                    $start->day !== 1 ||
-                    $end->day !== $end->daysInMonth ||
-                    $start->format('Y-m') !== $end->format('Y-m')
-                ) {
+                if ($end->lt($start)) {
                     throw ValidationException::withMessages([
                         'rental_period_start' => [
-                            'A rental bill must cover one complete calendar month.',
+                            'The rental period end must be on or after its start date.',
                         ],
                     ]);
                 }
@@ -83,7 +118,8 @@ class RentalBillGenerator
 
                 $existingBill = RentalBill::query()
                     ->where('room_assignment_id', $assignment->id)
-                    ->whereDate('rental_period_start', $periodStart)
+                    ->whereDate('rental_period_start', '<=', $periodEnd)
+                    ->whereDate('rental_period_end', '>=', $periodStart)
                     ->exists();
                 if ($existingBill) {
                     if ($skipExisting) {
@@ -92,7 +128,7 @@ class RentalBillGenerator
 
                     throw ValidationException::withMessages([
                         'rental_period_start' => [
-                            'A bill already exists for this assignment and rental month.',
+                            'A bill already exists for this assignment and overlapping rental period.',
                         ],
                     ]);
                 }
@@ -105,14 +141,14 @@ class RentalBillGenerator
                     ? $assignment->move_out_date
                     : $end;
                 $billableDays = (int) $overlapStart->diffInDays($overlapEnd) + 1;
-                $daysInMonth = $start->daysInMonth;
+                $billingPeriodDays = (int) $start->diffInDays($end) + 1;
                 $monthlyRentCents = RentalBill::toCents($assignment->monthly_rent);
                 $amountCents = $boardingHouse->billing_policy === 'full_monthly'
                     ? $monthlyRentCents
                     : self::proratedAmountInCents(
                         $monthlyRentCents,
                         $billableDays,
-                        $daysInMonth
+                        $billingPeriodDays
                     );
 
                 if ($amountCents < 1) {
@@ -128,7 +164,8 @@ class RentalBillGenerator
                     'billing_policy' => $boardingHouse->billing_policy,
                     'monthly_rent_snapshot' => $assignment->monthly_rent,
                     'billable_days' => $billableDays,
-                    'days_in_month' => $daysInMonth,
+                    'billing_period_days' => $billingPeriodDays,
+                    'days_in_month' => $billingPeriodDays,
                     'daily_late_fee_snapshot' => $boardingHouse->late_payment_fee ?? 0,
                     'grace_period_days_snapshot' => $boardingHouse->grace_period_days ?? 0,
                     'rental_period_start' => $periodStart,
@@ -143,7 +180,7 @@ class RentalBillGenerator
 
             throw ValidationException::withMessages([
                 'rental_period_start' => [
-                    'A bill already exists for this assignment and rental month.',
+                    'A bill already exists for this assignment and overlapping rental period.',
                 ],
             ]);
         }

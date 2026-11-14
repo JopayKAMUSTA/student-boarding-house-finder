@@ -65,7 +65,6 @@ export class RentalBills implements OnInit {
   boardingHousePolicies = new Map<number, BillingPolicy>();
   selectedTenantId: number | null = null;
   rentalMonth = this.currentMonth();
-  dueDate = this.today();
 
   selectedBill: RentalBillInfo | null = null;
   isLoadingDetails = false;
@@ -422,7 +421,6 @@ export class RentalBills implements OnInit {
     this.optionsError = '';
     this.selectedTenantId = null;
     this.rentalMonth = this.currentMonth();
-    this.dueDate = this.today();
     this.loadCreateOptions();
   }
 
@@ -488,8 +486,8 @@ export class RentalBills implements OnInit {
   createBill(): void {
     const tenant = this.selectedTenant;
     const assignment = tenant?.current_assignment;
-    if (!tenant || !assignment || !this.rentalMonth || !this.dueDate || this.isCreatingBill) {
-      this.createError = 'Select an eligible tenant and provide the billing month and due date.';
+    if (!tenant || !assignment || !this.rentalMonth || this.isCreatingBill) {
+      this.createError = 'Select an eligible tenant and provide the anniversary billing month.';
       return;
     }
 
@@ -498,21 +496,19 @@ export class RentalBills implements OnInit {
       return;
     }
 
-    const [year, month] = this.rentalMonth.split('-').map(Number);
-    if (!year || !month || month < 1 || month > 12) {
-      this.createError = 'Choose a valid billing month.';
+    const cycle = this.anniversaryCycle(this.rentalMonth, assignment.move_in_date);
+    if (!cycle) {
+      this.createError = 'Choose a month after the assignment move-in month.';
       return;
     }
-    const monthStart = `${this.rentalMonth}-01`;
-    const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
     this.isCreatingBill = true;
     this.createError = '';
     this.createSuccess = '';
     this.ownerAuth.createOwnerRentalBill(token, tenant.id, {
       room_assignment_id: assignment.id,
-      rental_period_start: monthStart,
-      rental_period_end: monthEnd,
-      due_date: this.dueDate
+      rental_period_start: cycle.start,
+      rental_period_end: cycle.end,
+      due_date: cycle.dueDate
     }).subscribe({
       next: (response) => {
         this.isCreatingBill = false;
@@ -801,6 +797,39 @@ export class RentalBills implements OnInit {
   private currentMonth(): string {
     const today = this.today();
     return today.slice(0, 7);
+  }
+
+  private anniversaryCycle(
+    billingMonth: string,
+    moveInDate: string
+  ): { start: string; end: string; dueDate: string } | null {
+    const [year, month] = billingMonth.split('-').map(Number);
+    const [moveInYear, moveInMonth, anchorDay] = moveInDate.split('-').map(Number);
+    if (
+      !year || !month || month < 1 || month > 12 ||
+      !moveInYear || !moveInMonth || moveInMonth < 1 || moveInMonth > 12 ||
+      !anchorDay || anchorDay < 1 || anchorDay > 31 ||
+      year * 12 + month <= moveInYear * 12 + moveInMonth
+    ) {
+      return null;
+    }
+
+    const start = this.anniversaryDate(year, month, anchorDay);
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+    const nextStart = this.anniversaryDate(nextYear, nextMonth, anchorDay);
+    const end = new Date(Date.UTC(
+      Number(nextStart.slice(0, 4)),
+      Number(nextStart.slice(5, 7)) - 1,
+      Number(nextStart.slice(8, 10)) - 1
+    )).toISOString().slice(0, 10);
+
+    return { start, end, dueDate: nextStart };
+  }
+
+  private anniversaryDate(year: number, month: number, anchorDay: number): string {
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(anchorDay, lastDay)).padStart(2, '0')}`;
   }
 
   private today(): string {

@@ -1,4 +1,3 @@
-
 <?php
 
 use App\Models\User;
@@ -17,9 +16,14 @@ use App\Http\Controllers\AdminBoardinghouseController;
 use App\Http\Controllers\AdminOwnerController;
 use App\Http\Controllers\AdminReportsController;
 use App\Http\Controllers\OwnerBoardingHouseRoomController;
+use App\Http\Controllers\OwnerBoardingHousePaymentMethodController;
+use App\Http\Controllers\OwnerConversationController;
 use App\Http\Controllers\OwnerRentalBillController;
 use App\Http\Controllers\OwnerRentalPaymentReviewController;
 use App\Http\Controllers\StudentRentalPaymentController;
+use App\Http\Controllers\StudentRentalBillController;
+use App\Http\Controllers\StudentBoardingHousePaymentMethodController;
+use App\Http\Controllers\StudentConversationController;
 use App\Http\Controllers\OwnerTenantController;
 use App\Http\Controllers\AdminDashboardController;
 
@@ -452,10 +456,65 @@ Route::middleware('auth:sanctum')->post('/logout', function (Request $request) {
 
 Route::middleware('auth:sanctum')->group(function () {
 
+    Route::get('/student/conversations/unread-count', [
+        StudentConversationController::class,
+        'unreadCount',
+    ]);
+
+    Route::get('/student/conversations', [
+        StudentConversationController::class,
+        'index',
+    ]);
+
+    Route::post('/student/conversations', [
+        StudentConversationController::class,
+        'store',
+    ]);
+
+    Route::get('/student/conversations/{conversation}', [
+        StudentConversationController::class,
+        'show',
+    ]);
+
+    Route::get('/student/conversations/{conversation}/messages', [
+        StudentConversationController::class,
+        'messages',
+    ]);
+
+    Route::post('/student/conversations/{conversation}/messages', [
+        StudentConversationController::class,
+        'send',
+    ]);
+
+    Route::post('/student/conversations/{conversation}/read', [
+        StudentConversationController::class,
+        'markRead',
+    ]);
+
+    Route::get(
+        '/student/conversations/{conversation}/attachments/{attachment}',
+        [StudentConversationController::class, 'attachment']
+    )->name('student.conversations.attachments.show');
+
+    Route::get('/student/rental-bills', [
+        StudentRentalBillController::class,
+        'index',
+    ]);
+
     Route::post('/student/rental-bills/{bill}/payment-submissions', [
         StudentRentalPaymentController::class,
         'submit',
     ]);
+
+    Route::get('/student/rental-bills/{bill}/payment-methods', [
+        StudentBoardingHousePaymentMethodController::class,
+        'index',
+    ]);
+
+    Route::get('/student/rental-bills/{bill}/payment-methods/{paymentMethod}/qr', [
+        StudentBoardingHousePaymentMethodController::class,
+        'showQr',
+    ])->name('student.rental-bills.payment-methods.qr');
 
     Route::get('/rental-payments/{payment}/proof', [
         OwnerRentalPaymentReviewController::class,
@@ -588,6 +647,52 @@ Route::middleware('auth:sanctum')
     ->prefix('owner')
     ->group(function () {
 
+        // Owner-tenant messaging
+        Route::get('/conversations/recipients', [
+            OwnerConversationController::class,
+            'recipients',
+        ]);
+
+        Route::get('/conversations/unread-count', [
+            OwnerConversationController::class,
+            'unreadCount',
+        ]);
+
+        Route::get('/conversations', [
+            OwnerConversationController::class,
+            'index',
+        ]);
+
+        Route::post('/conversations', [
+            OwnerConversationController::class,
+            'store',
+        ]);
+
+        Route::get('/conversations/{conversation}', [
+            OwnerConversationController::class,
+            'show',
+        ]);
+
+        Route::get('/conversations/{conversation}/messages', [
+            OwnerConversationController::class,
+            'messages',
+        ]);
+
+        Route::post('/conversations/{conversation}/messages', [
+            OwnerConversationController::class,
+            'send',
+        ]);
+
+        Route::post('/conversations/{conversation}/read', [
+            OwnerConversationController::class,
+            'markRead',
+        ]);
+
+        Route::get(
+            '/conversations/{conversation}/attachments/{attachment}',
+            [OwnerConversationController::class, 'attachment']
+        )->name('owner.conversations.attachments.show');
+
         // Tenant management
         Route::get('/tenants', [
             OwnerTenantController::class,
@@ -670,6 +775,36 @@ Route::middleware('auth:sanctum')
             OwnerRentalBillController::class,
             'voidPayment',
         ]);
+
+        Route::get('/boarding-houses/{boardingHouse}/payment-methods', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'index',
+        ]);
+
+        Route::post('/boarding-houses/{boardingHouse}/payment-methods', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'store',
+        ]);
+
+        Route::put('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'update',
+        ]);
+
+        Route::patch('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}/status', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'updateStatus',
+        ]);
+
+        Route::delete('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'destroy',
+        ]);
+
+        Route::get('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}/qr', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'showQr',
+        ])->name('owner.boarding-houses.payment-methods.qr');
 
         // Boarding-house room management
         Route::get('/boarding-houses/{boardingHouse}/rooms', [

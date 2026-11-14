@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { ManagedRoomInfo, OwnerAuth } from '../../services/owner-auth';
 import { RoomManagement } from './room-management';
 
@@ -56,7 +56,7 @@ describe('RoomManagement', () => {
           useValue: {
             getToken: () => 'owner-token',
             getOwnerRooms: () => of(response),
-            getOwnerRoomImage: () => of(new Blob(['photo'])),
+            getOwnerRoomImage: () => of(new Blob(['photo'], { type: 'image/png' })),
             deleteOwnerRoom: () => deleteResponse()
           }
         }
@@ -106,6 +106,81 @@ describe('RoomManagement', () => {
     );
     expect(roomLinks.map((link) => link.textContent?.trim())).toContain('View Details');
     expect(fixture.nativeElement.querySelector('img')).not.toBeNull();
+  });
+
+  it('shows a useful fallback when a room image request fails', async () => {
+    response.data.data = [{
+      id: 9,
+      boarding_house_id: 42,
+      room_number: '201',
+      room_type: 'Single Room',
+      monthly_rent: '5000.00',
+      pricing_basis: 'per_person',
+      max_occupants: 1,
+      availability_status: 'available',
+      description: null,
+      amenities: [],
+      images: [{ id: 4, image_path: 'room-images/room.png', url: '/storage/room-images/room.png' }]
+    }];
+    response.data.total = 1;
+    vi.spyOn(TestBed.inject(OwnerAuth), 'getOwnerRoomImage').mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 404 }))
+    );
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Photo unavailable');
+    expect(fixture.nativeElement.querySelector('img')).toBeNull();
+  });
+
+  it('requests a shared image id only once and revokes its object URL on destroy', async () => {
+    const image = {
+      id: 4,
+      image_path: 'room-images/room.png',
+      url: '/storage/room-images/room.png'
+    };
+    response.data.data = [
+      {
+        id: 9,
+        boarding_house_id: 42,
+        room_number: '201',
+        room_type: 'Single Room',
+        monthly_rent: '5000.00',
+        pricing_basis: 'per_person',
+        max_occupants: 1,
+        availability_status: 'available',
+        description: null,
+        amenities: [],
+        images: [image]
+      },
+      {
+        id: 10,
+        boarding_house_id: 42,
+        room_number: '202',
+        room_type: 'Single Room',
+        monthly_rent: '5000.00',
+        pricing_basis: 'per_person',
+        max_occupants: 1,
+        availability_status: 'available',
+        description: null,
+        amenities: [],
+        images: [image]
+      }
+    ];
+    response.data.total = 2;
+    const getImage = vi.spyOn(TestBed.inject(OwnerAuth), 'getOwnerRoomImage');
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL');
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(getImage).toHaveBeenCalledTimes(1);
+    const objectUrl = component.imageUrls[4];
+    expect(objectUrl).toBeDefined();
+    fixture.destroy();
+    expect(revokeObjectUrl).toHaveBeenCalledWith(objectUrl);
   });
 
   it('removes a room immediately and restores it if deletion fails', async () => {

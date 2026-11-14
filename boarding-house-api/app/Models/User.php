@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\OwnerProfile;
 
 class User extends Authenticatable
@@ -50,4 +51,14 @@ class User extends Authenticatable
 {
     return $this->hasOne(OwnerProfile::class);
 }
+
+    public function ownedConversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'owner_id');
+    }
+
+    public function sentMessages(): HasMany
+    {
+        return $this->hasMany(Message::class, 'sender_id');
+    }
 }

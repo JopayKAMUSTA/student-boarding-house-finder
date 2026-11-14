@@ -10,11 +10,11 @@
 
   <section class="generation-panel" aria-label="Automatic bill generation">
     <div>
-      <h2>Automatic monthly billing</h2>
-      <p>Bills are reconciled daily for the selected calendar month. Due dates follow each assignment's move-in anniversary.</p>
+      <h2>Anniversary-based monthly billing</h2>
+      <p>Bills are generated daily on each assignment's move-in anniversary and cover the following rental cycle.</p>
     </div>
     <label>
-      Billing month
+      Anniversary month
       <input type="month" name="billingMonth" [(ngModel)]="billingMonth"
         (ngModelChange)="onBillingMonthChange()" />
     </label>
@@ -33,7 +33,7 @@
           {{ generationStatus.generated_bills }} of {{ generationStatus.eligible_assignments }} eligible bills generated;
           {{ generationStatus.missing_bills }} will be reconciled by the scheduled process.
         </span>
-        <span *ngSwitchDefault>No eligible assignments for this month.</span>
+        <span *ngSwitchDefault>No eligible anniversary cycles for this month.</span>
       </ng-container>
       <small>Daily at {{ generationStatus.scheduled_time }} ({{ generationStatus.timezone }})</small>
     </p>
@@ -239,7 +239,8 @@
           <div><dt>Monthly rent snapshot</dt><dd>{{ money(selectedBill.monthly_rent_snapshot) }}</dd></div>
           <div *ngIf="selectedBill.billing_policy === 'prorated'">
             <dt>Proration</dt>
-            <dd>{{ selectedBill.billable_days }} of {{ selectedBill.days_in_month }} days</dd>
+            <dd>{{ selectedBill.billable_days }} of
+              {{ selectedBill.billing_period_days ?? selectedBill.days_in_month }} days</dd>
           </div>
           <div><dt>Original rent</dt><dd>{{ money(selectedBill.original_amount) }}</dd></div>
           <div>
@@ -274,11 +275,12 @@
         </p>
         <p class="calculation-note" *ngIf="selectedBill.billing_policy === 'prorated'">
           Calculation: {{ money(selectedBill.monthly_rent_snapshot) }} ×
-          {{ selectedBill.billable_days }} ÷ {{ selectedBill.days_in_month }} days.
+          {{ selectedBill.billable_days }} ÷
+          {{ selectedBill.billing_period_days ?? selectedBill.days_in_month }} days.
           The saved bill amount is the final rounded amount.
         </p>
         <p class="calculation-note" *ngIf="selectedBill.billing_policy === 'full_monthly'">
-          This policy charges the full monthly rent when the assignment overlaps the billing month.
+          This policy charges the full monthly rent when the assignment overlaps the rental cycle.
         </p>
 
         <section *ngIf="selectedBill.payments?.length" class="payments" aria-labelledby="payment-history-title">

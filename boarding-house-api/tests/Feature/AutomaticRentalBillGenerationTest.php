@@ -30,11 +30,15 @@ class AutomaticRentalBillGenerationTest extends TestCase
             $this->assertDatabaseHas('rental_bills', [
                 'room_assignment_id' => $first->id,
                 'amount' => '4500.00',
+                'rental_period_start' => '2026-11-10 00:00:00',
+                'rental_period_end' => '2026-12-09 00:00:00',
                 'due_date' => '2026-12-10 00:00:00',
             ]);
             $this->assertDatabaseHas('rental_bills', [
                 'room_assignment_id' => $second->id,
                 'amount' => '5200.00',
+                'rental_period_start' => '2026-11-10 00:00:00',
+                'rental_period_end' => '2026-12-09 00:00:00',
                 'due_date' => '2026-12-10 00:00:00',
             ]);
 
@@ -47,18 +51,20 @@ class AutomaticRentalBillGenerationTest extends TestCase
 
     public function test_command_preserves_full_monthly_and_prorated_amount_rules(): void
     {
-        Carbon::setTestNow('2026-11-11 20:00:00');
+        Carbon::setTestNow('2026-11-15 20:00:00');
         try {
             $owner = $this->createOwner();
             $fullMonthly = $this->createAssignment($owner, [
                 'monthly_rent' => '3000.00',
-                'move_in_date' => '2026-11-10',
+                'move_in_date' => '2026-10-10',
             ]);
             $prorated = $this->createAssignment(
                 $owner,
                 [
                     'monthly_rent' => '3000.00',
-                    'move_in_date' => '2026-11-10',
+                    'move_in_date' => '2026-10-10',
+                    'move_out_date' => '2026-11-14',
+                    'status' => 'moved_out',
                 ],
                 ['billing_policy' => 'prorated']
             );
@@ -69,14 +75,17 @@ class AutomaticRentalBillGenerationTest extends TestCase
                 'room_assignment_id' => $fullMonthly->id,
                 'amount' => '3000.00',
                 'billing_policy' => 'full_monthly',
-                'billable_days' => 21,
+                'rental_period_start' => '2026-11-10 00:00:00',
+                'rental_period_end' => '2026-12-09 00:00:00',
+                'billing_period_days' => 30,
+                'billable_days' => 30,
             ]);
             $this->assertDatabaseHas('rental_bills', [
                 'room_assignment_id' => $prorated->id,
-                'amount' => '2100.00',
+                'amount' => '500.00',
                 'billing_policy' => 'prorated',
-                'billable_days' => 21,
-                'days_in_month' => 30,
+                'billable_days' => 5,
+                'billing_period_days' => 30,
             ]);
         } finally {
             Carbon::setTestNow();
@@ -89,7 +98,7 @@ class AutomaticRentalBillGenerationTest extends TestCase
         try {
             $owner = $this->createOwner();
             $movedOut = $this->createAssignment($owner, [
-                'move_in_date' => '2026-11-01',
+                'move_in_date' => '2026-09-01',
                 'move_out_date' => '2026-11-09',
                 'status' => 'moved_out',
             ], ['billing_policy' => 'prorated']);
@@ -101,6 +110,8 @@ class AutomaticRentalBillGenerationTest extends TestCase
             $this->assertDatabaseHas('rental_bills', [
                 'room_assignment_id' => $movedOut->id,
                 'amount' => '1500.00',
+                'rental_period_start' => '2026-11-01 00:00:00',
+                'rental_period_end' => '2026-11-30 00:00:00',
                 'billable_days' => 9,
             ]);
             $this->assertDatabaseMissing('rental_bills', [
@@ -117,25 +128,25 @@ class AutomaticRentalBillGenerationTest extends TestCase
         try {
             $owner = $this->createOwner();
             $oldAssignment = $this->createAssignment($owner, [
-                'move_in_date' => '2026-10-10',
-                'move_out_date' => '2026-11-09',
+                'move_in_date' => '2026-09-10',
+                'move_out_date' => '2026-11-15',
                 'status' => 'moved_out',
             ], ['billing_policy' => 'prorated']);
             $newAssignment = $this->createAssignment($owner, [
-                'move_in_date' => '2026-11-10',
+                'move_in_date' => '2026-11-15',
             ], ['billing_policy' => 'prorated']);
 
             $this->runMonth();
 
             $this->assertDatabaseHas('rental_bills', [
                 'room_assignment_id' => $oldAssignment->id,
-                'amount' => '1500.00',
+                'amount' => '1000.00',
+                'rental_period_start' => '2026-11-10 00:00:00',
+                'rental_period_end' => '2026-12-09 00:00:00',
                 'due_date' => '2026-12-10 00:00:00',
             ]);
-            $this->assertDatabaseHas('rental_bills', [
+            $this->assertDatabaseMissing('rental_bills', [
                 'room_assignment_id' => $newAssignment->id,
-                'amount' => '3500.00',
-                'due_date' => '2026-12-10 00:00:00',
             ]);
         } finally {
             Carbon::setTestNow();
@@ -144,7 +155,7 @@ class AutomaticRentalBillGenerationTest extends TestCase
 
     public function test_anniversary_due_date_clamps_to_last_day_of_short_month(): void
     {
-        Carbon::setTestNow('2027-01-02 20:00:00');
+        Carbon::setTestNow('2027-01-31 02:00:00');
         try {
             $owner = $this->createOwner();
             $assignment = $this->createAssignment($owner, [
@@ -155,7 +166,103 @@ class AutomaticRentalBillGenerationTest extends TestCase
 
             $this->assertDatabaseHas('rental_bills', [
                 'room_assignment_id' => $assignment->id,
+                'rental_period_start' => '2027-01-31 00:00:00',
+                'rental_period_end' => '2027-02-27 00:00:00',
                 'due_date' => '2027-02-28 00:00:00',
+            ]);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_month_end_anniversary_returns_to_original_anchor_after_february(): void
+    {
+        Carbon::setTestNow('2027-02-28 02:00:00');
+        try {
+            $owner = $this->createOwner();
+            $assignment = $this->createAssignment($owner, [
+                'move_in_date' => '2026-01-31',
+            ]);
+            Artisan::call('rental-bills:generate-monthly', ['--month' => '2027-02']);
+            $this->assertDatabaseHas('rental_bills', [
+                'room_assignment_id' => $assignment->id,
+                'rental_period_start' => '2027-02-28 00:00:00',
+                'rental_period_end' => '2027-03-30 00:00:00',
+                'due_date' => '2027-03-31 00:00:00',
+            ]);
+
+            Carbon::setTestNow('2027-03-31 02:00:00');
+            Artisan::call('rental-bills:generate-monthly', ['--month' => '2027-03']);
+            $this->assertDatabaseHas('rental_bills', [
+                'room_assignment_id' => $assignment->id,
+                'rental_period_start' => '2027-03-31 00:00:00',
+                'rental_period_end' => '2027-04-29 00:00:00',
+                'due_date' => '2027-04-30 00:00:00',
+            ]);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_proration_uses_the_actual_anniversary_cycle_length(): void
+    {
+        Carbon::setTestNow('2026-02-28 02:00:00');
+        try {
+            $owner = $this->createOwner();
+            $assignment = $this->createAssignment($owner, [
+                'monthly_rent' => '3100.00',
+                'move_in_date' => '2026-01-31',
+                'move_out_date' => '2026-03-02',
+                'status' => 'moved_out',
+            ], ['billing_policy' => 'prorated']);
+
+            Artisan::call('rental-bills:generate-monthly', ['--month' => '2026-02']);
+
+            $this->assertDatabaseHas('rental_bills', [
+                'room_assignment_id' => $assignment->id,
+                'amount' => '300.00',
+                'rental_period_start' => '2026-02-28 00:00:00',
+                'rental_period_end' => '2026-03-30 00:00:00',
+                'billable_days' => 3,
+                'billing_period_days' => 31,
+            ]);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_daily_run_catches_up_a_missed_anniversary_and_skips_overlapping_history(): void
+    {
+        Carbon::setTestNow('2026-11-14 02:00:00');
+        try {
+            $owner = $this->createOwner();
+            $assignment = $this->createAssignment($owner, [
+                'move_in_date' => '2026-10-11',
+            ]);
+
+            Artisan::call('rental-bills:generate-monthly');
+            $this->assertDatabaseHas('rental_bills', [
+                'room_assignment_id' => $assignment->id,
+                'rental_period_start' => '2026-11-11 00:00:00',
+                'rental_period_end' => '2026-12-10 00:00:00',
+                'due_date' => '2026-12-11 00:00:00',
+            ]);
+
+            $assignmentWithLegacyBill = $this->createAssignment($owner, [
+                'move_in_date' => '2026-10-11',
+            ]);
+            $assignmentWithLegacyBill->rentalBills()->create([
+                'amount' => '5000.00',
+                'rental_period_start' => '2026-11-01 00:00:00',
+                'rental_period_end' => '2026-11-30 00:00:00',
+                'due_date' => '2026-12-11',
+            ]);
+            Artisan::call('rental-bills:generate-monthly');
+            $this->assertDatabaseCount('rental_bills', 2);
+            $this->assertDatabaseHas('rental_bills', [
+                'room_assignment_id' => $assignmentWithLegacyBill->id,
+                'rental_period_start' => '2026-11-01 00:00:00',
+                'rental_period_end' => '2026-11-30 00:00:00',
             ]);
         } finally {
             Carbon::setTestNow();
@@ -243,6 +350,10 @@ class AutomaticRentalBillGenerationTest extends TestCase
                 ->assertJsonPath('data.generated_bills', 1)
                 ->assertJsonPath('data.missing_bills', 0)
                 ->assertJsonPath('data.status', 'complete');
+            $this->getJson('/api/owner/rental-bills?month=2026-11')
+                ->assertOk()
+                ->assertJsonPath('data.total', 1)
+                ->assertJsonPath('data.data.0.rental_period_start', '2026-11-10T00:00:00.000000Z');
         } finally {
             Carbon::setTestNow();
         }

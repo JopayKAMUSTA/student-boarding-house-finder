@@ -1,0 +1,94 @@
+<div class="payment-methods-page">
+  <a class="back-link" routerLink="/boarding-houses">Back to My Boarding Houses</a>
+
+  <header class="page-header">
+    <div>
+      <h1>Payment Methods</h1>
+      <p>Manage the payment accounts students can use for this boarding house.</p>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreateForm()"
+      [disabled]="isSaving">Add Payment Method</button>
+  </header>
+
+  <p *ngIf="isLoading" role="status" class="notice">Loading payment methods...</p>
+  <p *ngIf="errorMessage" role="alert" class="notice notice-error">{{ errorMessage }}</p>
+  <p *ngIf="successMessage" role="status" class="notice notice-success">{{ successMessage }}</p>
+
+  <form *ngIf="isFormOpen" class="method-form" (ngSubmit)="savePaymentMethod()">
+    <h2>{{ editingMethod ? 'Edit Payment Method' : 'Add Payment Method' }}</h2>
+    <label>
+      Provider
+      <select name="provider" [(ngModel)]="providerChoice">
+        <option value="GCash">GCash</option>
+        <option value="Maya">Maya</option>
+        <option value="Other">Other</option>
+      </select>
+    </label>
+    <label *ngIf="providerChoice === 'Other'">
+      Provider name
+      <input name="otherProvider" [(ngModel)]="otherProvider" maxlength="100" required />
+    </label>
+    <label>
+      Account holder name
+      <input name="accountName" [(ngModel)]="accountName" maxlength="255" required />
+    </label>
+    <label>
+      Account number or mobile number
+      <input name="accountNumber" [(ngModel)]="accountNumber" maxlength="100" required />
+    </label>
+    <label>
+      QR code image {{ editingMethod ? '(optional when editing)' : '' }}
+      <input type="file" name="qrCode" accept="image/jpeg,image/png,image/webp"
+        (change)="selectQr($event)" [required]="!editingMethod" />
+    </label>
+    <label class="active-control">
+      <input type="checkbox" name="isActive" [(ngModel)]="isActive" />
+      Active and visible to students
+    </label>
+    <p *ngIf="formError" role="alert" class="notice notice-error">{{ formError }}</p>
+    <div class="form-actions">
+      <button type="button" class="btn btn-outline" (click)="cancelForm()"
+        [disabled]="isSaving">Cancel</button>
+      <button type="submit" class="btn btn-primary" [disabled]="isSaving">
+        {{ isSaving ? 'Saving...' : 'Save Payment Method' }}
+      </button>
+    </div>
+  </form>
+
+  <section *ngIf="!isLoading && paymentMethods.length === 0" class="empty">
+    <h2>No payment methods yet</h2>
+    <p>Add an e-wallet account and QR code for students to use.</p>
+  </section>
+
+  <section class="method-list" aria-label="Boarding house payment methods">
+    <article *ngFor="let method of paymentMethods" class="method-card">
+      <div class="qr-preview">
+        <img *ngIf="qrImageUrls[method.id] && !qrImageErrors[method.id]"
+          [src]="qrImageUrls[method.id]" [alt]="method.provider + ' QR code'"
+          (error)="qrImageFailed(method)" />
+        <span *ngIf="qrImageErrors[method.id] || !qrImageUrls[method.id]">
+          {{ qrImageErrors[method.id] || 'Loading QR code...' }}
+        </span>
+      </div>
+      <div class="method-info">
+        <h2>{{ method.provider }}</h2>
+        <p><strong>Account holder:</strong> {{ method.account_name }}</p>
+        <p><strong>Account number:</strong> {{ method.account_number }}</p>
+        <span class="status" [class.status-inactive]="!method.is_active">
+          {{ method.is_active ? 'Active' : 'Inactive' }}
+        </span>
+      </div>
+      <div class="method-actions">
+        <button type="button" class="btn btn-outline" (click)="openEditForm(method)">Edit</button>
+        <button type="button" class="btn btn-outline" (click)="toggleActive(method)"
+          [disabled]="savingStatusId !== null">
+          {{ savingStatusId === method.id ? 'Saving...' : method.is_active ? 'Deactivate' : 'Activate' }}
+        </button>
+        <button type="button" class="btn btn-danger" (click)="deletePaymentMethod(method)"
+          [disabled]="deletingId !== null">
+          {{ deletingId === method.id ? 'Removing...' : 'Remove' }}
+        </button>
+      </div>
+    </article>
+  </section>
+</div>

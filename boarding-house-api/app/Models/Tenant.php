@@ -40,6 +40,11 @@ class Tenant extends Model
         return $this->hasMany(RoomAssignment::class);
     }
 
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
     public function currentAssignment(): HasOne
     {
         return $this->hasOne(RoomAssignment::class)->where('status', 'active');

@@ -8,6 +8,8 @@ use App\Models\RoomAssignment;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -171,6 +173,151 @@ class OwnerTenantManagementTest extends TestCase
             'id' => $room->id,
             'availability_status' => 'occupied',
         ]);
+    }
+
+    public function test_assignment_immediately_generates_the_due_anniversary_bill_for_owner_management(): void
+    {
+        Carbon::setTestNow('2026-11-14 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $house = $this->createBoardingHouse($owner, [
+                'billing_policy' => 'full_monthly',
+            ]);
+            $room = $this->createRoom($house, ['monthly_rent' => '3500.00']);
+            $tenant = $this->createTenant($owner, ['full_name' => 'test full']);
+            Sanctum::actingAs($owner);
+
+            $assignmentResponse = $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
+                'boarding_house_room_id' => $room->id,
+                'move_in_date' => '2026-10-11',
+            ])->assertCreated();
+            $assignmentId = $assignmentResponse->json('data.id');
+
+            $this->assertDatabaseHas('rental_bills', [
+                'room_assignment_id' => $assignmentId,
+                'amount' => '3500.00',
+                'rental_period_start' => '2026-11-11 00:00:00',
+                'rental_period_end' => '2026-12-10 00:00:00',
+                'due_date' => '2026-12-11 00:00:00',
+                'monthly_rent_snapshot' => '3500.00',
+            ]);
+
+            $this->getJson('/api/owner/rental-bills?month=2026-11')
+                ->assertOk()
+                ->assertJsonPath('data.total', 1)
+                ->assertJsonPath('data.data.0.room_assignment.id', $assignmentId);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_future_move_in_does_not_generate_a_bill_before_its_due_cycle(): void
+    {
+        Carbon::setTestNow('2026-11-14 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $house = $this->createBoardingHouse($owner);
+            $room = $this->createRoom($house);
+            $tenant = $this->createTenant($owner);
+            Sanctum::actingAs($owner);
+
+            $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
+                'boarding_house_room_id' => $room->id,
+                'move_in_date' => '2026-11-20',
+            ])->assertCreated();
+
+            $this->assertDatabaseCount('rental_bills', 0);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_immediate_generation_is_idempotent_for_retries_and_the_scheduled_backup(): void
+    {
+        Carbon::setTestNow('2026-11-14 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $house = $this->createBoardingHouse($owner);
+            $room = $this->createRoom($house);
+            $tenant = $this->createTenant($owner);
+            Sanctum::actingAs($owner);
+            $payload = [
+                'boarding_house_room_id' => $room->id,
+                'move_in_date' => '2026-10-11',
+            ];
+
+            $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", $payload)
+                ->assertCreated();
+            $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", $payload)
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['tenant']);
+            Artisan::call('rental-bills:generate-monthly');
+
+            $this->assertDatabaseCount('rental_bills', 1);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_transfer_generates_bills_for_the_new_assignment_without_changing_old_bills_or_payments(): void
+    {
+        Carbon::setTestNow('2026-11-14 12:00:00');
+        try {
+            $owner = $this->createOwner();
+            $house = $this->createBoardingHouse($owner);
+            $source = $this->createRoom($house);
+            $destination = $this->createRoom($house, [
+                'room_number' => '102',
+                'monthly_rent' => '6200.00',
+            ]);
+            $tenant = $this->createTenant($owner);
+            $previous = $this->createAssignment($tenant, $source);
+            $oldBill = $previous->rentalBills()->create([
+                'amount' => '5000.00',
+                'rental_period_start' => '2026-10-01',
+                'rental_period_end' => '2026-10-10',
+                'due_date' => '2026-10-11',
+            ]);
+            $payment = $oldBill->payments()->create([
+                'amount' => '100.00',
+                'payment_date' => '2026-10-10',
+                'recorded_by' => $owner->id,
+            ]);
+            Sanctum::actingAs($owner);
+
+            $response = $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
+                'boarding_house_room_id' => $destination->id,
+                'move_in_date' => '2026-10-11',
+            ])->assertCreated();
+            $newAssignmentId = $response->json('data.id');
+
+            $this->assertDatabaseHas('rental_bills', [
+                'id' => $oldBill->id,
+                'room_assignment_id' => $previous->id,
+                'amount' => '5000.00',
+                'rental_period_start' => '2026-10-01 00:00:00',
+                'rental_period_end' => '2026-10-10 00:00:00',
+            ]);
+            $this->assertDatabaseHas('rental_payments', [
+                'id' => $payment->id,
+                'rental_bill_id' => $oldBill->id,
+                'amount' => '100.00',
+            ]);
+            $this->assertDatabaseHas('rental_bills', [
+                'room_assignment_id' => $newAssignmentId,
+                'amount' => '6200.00',
+                'rental_period_start' => '2026-11-11 00:00:00',
+                'rental_period_end' => '2026-12-10 00:00:00',
+                'due_date' => '2026-12-11 00:00:00',
+            ]);
+            $this->assertDatabaseCount('rental_bills', 2);
+            $this->assertDatabaseHas('room_assignments', [
+                'id' => $previous->id,
+                'status' => 'moved_out',
+            ]);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_room_details_returns_empty_current_occupants_for_unassigned_room(): void

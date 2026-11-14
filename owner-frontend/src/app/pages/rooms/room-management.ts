@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import {
   BoardingHouseLocation,
   ManagedRoomInfo,
@@ -32,8 +33,14 @@ export class RoomManagement implements OnInit, OnDestroy {
   errorMessage = '';
   photoError = '';
   imageUrls: Record<number, string> = {};
+  imageLoadFailures = new Set<number>();
+  private roomListRequest = new Subscription();
+  private imageRequests = new Subscription();
+  private readonly requestedImageIds = new Set<number>();
 
   ngOnDestroy(): void {
+    this.roomListRequest.unsubscribe();
+    this.imageRequests.unsubscribe();
     this.clearImageUrls();
   }
 
@@ -58,48 +65,49 @@ export class RoomManagement implements OnInit, OnDestroy {
     this.isLoading = true;
     this.errorMessage = '';
     this.photoError = '';
+    this.roomListRequest.unsubscribe();
+    this.roomListRequest = new Subscription();
+    this.imageRequests.unsubscribe();
+    this.imageRequests = new Subscription();
+    this.requestedImageIds.clear();
+    this.imageLoadFailures.clear();
     this.clearImageUrls();
-this.ownerAuth.getOwnerRooms(
-  token,
-  this.boardingHouseId,
-  page
-).subscribe({
-  next: (response) => {
-    this.isLoading = false;
+    this.roomListRequest.add(this.ownerAuth.getOwnerRooms(
+      token,
+      this.boardingHouseId,
+      page
+    ).subscribe({
+      next: (response) => {
+        this.isLoading = false;
+        const result = response?.data;
+        if (
+          !response?.success ||
+          !response.boarding_house ||
+          !result ||
+          !Array.isArray(result.data) ||
+          !Number.isInteger(result.total) ||
+          !Number.isInteger(result.current_page) ||
+          !Number.isInteger(result.last_page)
+        ) {
+          this.errorMessage = 'The room list response was not valid.';
+          this.cdr.detectChanges();
+          return;
+        }
 
-    const result = response?.data;
-
-    if (
-      !response?.success ||
-      !response.boarding_house ||
-      !result ||
-      !Array.isArray(result.data) ||
-      !Number.isInteger(result.total) ||
-      !Number.isInteger(result.current_page) ||
-      !Number.isInteger(result.last_page)
-    ) {
-      this.errorMessage = 'The room list response was not valid.';
-      this.cdr.detectChanges();
-      return;
-    }
-
-    this.boardingHouse = response.boarding_house;
-    this.rooms = result.data;
-    this.currentPage = result.current_page;
-    this.lastPage = result.last_page;
-    this.total = result.total;
-
-    this.loadRoomImages(result.data);
-
-    this.cdr.detectChanges();
-  },
-
-  error: (error: HttpErrorResponse) => {
-    this.isLoading = false;
-    this.handleApiError(error);
-    this.cdr.detectChanges();
-  }
-});
+        this.boardingHouse = response.boarding_house;
+        this.rooms = result.data;
+        this.currentPage = result.current_page;
+        this.lastPage = result.last_page;
+        this.total = result.total;
+        this.loadRoomImages(result.data);
+        this.cdr.detectChanges();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.isLoading = false;
+        this.handleApiError(error);
+        this.cdr.detectChanges();
+      }
+    }));
   }
 
   deleteRoom(room: ManagedRoomInfo): void {
@@ -195,6 +203,7 @@ this.ownerAuth.getOwnerRooms(
         : 'Could not complete the room request. Please try again.';
   }
 
+
   private loadRoomImages(rooms: ManagedRoomInfo[]): void {
     const token = this.ownerAuth.getToken();
     if (!token) {
@@ -202,24 +211,42 @@ this.ownerAuth.getOwnerRooms(
     }
 
     rooms.forEach((room) => room.images.forEach((image) => {
-      this.ownerAuth.getOwnerRoomImage(
+      if (this.requestedImageIds.has(image.id)) {
+        return;
+      }
+      this.requestedImageIds.add(image.id);
+      this.imageRequests.add(this.ownerAuth.getOwnerRoomImage(
         token,
         this.boardingHouseId,
         room.id,
         image.id
       ).subscribe({
         next: (blob) => {
-          this.imageUrls[image.id] = URL.createObjectURL(blob);
+          if (!blob.type.startsWith('image/')) {
+            this.imageLoadFailures.add(image.id);
+          } else {
+            this.imageUrls[image.id] = URL.createObjectURL(blob);
+          }
+          this.cdr.detectChanges();
         },
         error: (error: HttpErrorResponse) => {
+          this.imageLoadFailures.add(image.id);
           if (error.status === 401 || error.status === 403) {
             this.handleApiError(error);
           } else {
             this.photoError = 'One or more room photos could not be loaded.';
           }
+          this.cdr.detectChanges();
         }
-      });
+      }));
     }));
+  }
+
+  onRoomImageError(imageId: number): void {
+    this.imageLoadFailures.add(imageId);
+    this.revokeImageUrl(imageId);
+    this.photoError = 'One or more room photos could not be displayed.';
+    this.cdr.detectChanges();
   }
 
   private clearImageUrls(): void {

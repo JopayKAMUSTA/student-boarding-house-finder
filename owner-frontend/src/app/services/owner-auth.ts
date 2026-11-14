@@ -207,6 +207,83 @@ export interface OwnerTenantAssignmentData {
   move_in_date: string;
 }
 
+export interface MessageRecipientInfo {
+  tenant_id: number;
+  tenant_name: string;
+  boarding_house_id: number;
+  boarding_house_name: string;
+}
+
+export interface MessageAttachmentInfo {
+  id: number;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+  created_at: string;
+  url: string;
+}
+
+export interface ConversationMessageInfo {
+  id: number;
+  conversation_id: number;
+  sender_id: number;
+  sender: { id: number; name: string; role: string };
+  body: string | null;
+  read_at: string | null;
+  created_at: string;
+  attachments: MessageAttachmentInfo[];
+}
+
+export interface ConversationInfo {
+  id: number;
+  tenant_id: number;
+  boarding_house_id: number;
+  tenant: { id: number; full_name: string; user_id: number };
+  boarding_house: { id: number; name: string };
+  latest_message: {
+    id: number;
+    body: string | null;
+    sender: { id: number; name: string; role: string };
+    created_at: string;
+  } | null;
+  unread_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationPageResponse {
+  success: boolean;
+  data: {
+    data: ConversationInfo[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export interface ConversationMessagesResponse {
+  success: boolean;
+  data: {
+    data: ConversationMessageInfo[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export interface MessageRecipientsResponse {
+  success: boolean;
+  data: {
+    data: MessageRecipientInfo[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
 export interface RentalPaymentInfo {
   id: number;
   rental_bill_id: number;
@@ -262,6 +339,7 @@ export interface RentalBillInfo {
   billing_policy: BillingPolicy | null;
   monthly_rent_snapshot: string | number | null;
   billable_days: number | null;
+  billing_period_days: number | null;
   days_in_month: number | null;
   rental_period_start: string;
   rental_period_end: string;
@@ -338,6 +416,27 @@ export interface CreateRentalBillData {
   rental_period_start: string;
   rental_period_end: string;
   due_date: string;
+}
+
+export interface BoardingHousePaymentMethodInfo {
+  id: number;
+  boarding_house_id: number;
+  provider: string;
+  account_name: string;
+  account_number: string;
+  qr_code_url: string;
+  is_active: boolean;
+}
+
+export interface BoardingHousePaymentMethodsResponse {
+  success: boolean;
+  data: BoardingHousePaymentMethodInfo[];
+}
+
+export interface BoardingHousePaymentMethodResponse {
+  success: boolean;
+  message?: string;
+  data: BoardingHousePaymentMethodInfo;
 }
 
 export interface RecordRentalPaymentData {
@@ -542,6 +641,80 @@ export class OwnerAuth {
     );
   }
 
+  getOwnerPaymentMethods(
+    token: string,
+    boardingHouseId: number
+  ): Observable<BoardingHousePaymentMethodsResponse> {
+    return this.http.get<BoardingHousePaymentMethodsResponse>(
+      `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/payment-methods`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  createOwnerPaymentMethod(
+    token: string,
+    boardingHouseId: number,
+    data: FormData
+  ): Observable<BoardingHousePaymentMethodResponse> {
+    return this.http.post<BoardingHousePaymentMethodResponse>(
+      `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/payment-methods`,
+      data,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  updateOwnerPaymentMethod(
+    token: string,
+    boardingHouseId: number,
+    methodId: number,
+    data: FormData
+  ): Observable<BoardingHousePaymentMethodResponse> {
+    data.set('_method', 'PUT');
+    return this.http.post<BoardingHousePaymentMethodResponse>(
+      `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/payment-methods/${methodId}`,
+      data,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  setOwnerPaymentMethodStatus(
+    token: string,
+    boardingHouseId: number,
+    methodId: number,
+    isActive: boolean
+  ): Observable<BoardingHousePaymentMethodResponse> {
+    return this.http.patch<BoardingHousePaymentMethodResponse>(
+      `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/payment-methods/${methodId}/status`,
+      { is_active: isActive },
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  deleteOwnerPaymentMethod(
+    token: string,
+    boardingHouseId: number,
+    methodId: number
+  ): Observable<{ success: boolean; message?: string }> {
+    return this.http.delete<{ success: boolean; message?: string }>(
+      `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/payment-methods/${methodId}`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  getOwnerPaymentMethodQr(
+    token: string,
+    boardingHouseId: number,
+    methodId: number
+  ): Observable<Blob> {
+    return this.http.get(
+      `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/payment-methods/${methodId}/qr`,
+      {
+        headers: this.authorizationHeaders(token),
+        responseType: 'blob'
+      }
+    );
+  }
+
   getOwnerTenants(
     token: string,
     page = 1,
@@ -559,6 +732,111 @@ export class OwnerAuth {
     return this.http.get<OwnerTenantPageResponse>(
       `${this.apiUrl}/owner/tenants?${params.toString()}`,
       { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  getOwnerConversations(
+    token: string,
+    page = 1,
+    perPage = 15
+  ): Observable<ConversationPageResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(perPage)
+    });
+    return this.http.get<ConversationPageResponse>(
+      `${this.apiUrl}/owner/conversations?${params.toString()}`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  getOwnerMessageRecipients(
+    token: string,
+    page = 1,
+    perPage = 100
+  ): Observable<MessageRecipientsResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(perPage)
+    });
+    return this.http.get<MessageRecipientsResponse>(
+      `${this.apiUrl}/owner/conversations/recipients?${params.toString()}`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  createOwnerConversation(
+    token: string,
+    data: { tenant_id: number; boarding_house_id: number }
+  ): Observable<{ success: boolean; message?: string; data: ConversationInfo }> {
+    return this.http.post<{ success: boolean; message?: string; data: ConversationInfo }>(
+      `${this.apiUrl}/owner/conversations`,
+      data,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  getOwnerConversationMessages(
+    token: string,
+    conversationId: number,
+    page = 1,
+    perPage = 30
+  ): Observable<ConversationMessagesResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(perPage)
+    });
+    return this.http.get<ConversationMessagesResponse>(
+      `${this.apiUrl}/owner/conversations/${conversationId}/messages?${params.toString()}`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  sendOwnerConversationMessage(
+    token: string,
+    conversationId: number,
+    data: FormData
+  ): Observable<{ success: boolean; message?: string; data: ConversationMessageInfo }> {
+    return this.http.post<{ success: boolean; message?: string; data: ConversationMessageInfo }>(
+      `${this.apiUrl}/owner/conversations/${conversationId}/messages`,
+      data,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  markOwnerConversationRead(
+    token: string,
+    conversationId: number
+  ): Observable<{ success: boolean; data: { marked_read: number } }> {
+    return this.http.post<{ success: boolean; data: { marked_read: number } }>(
+      `${this.apiUrl}/owner/conversations/${conversationId}/read`,
+      {},
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  getOwnerUnreadMessageCount(
+    token: string
+  ): Observable<{ success: boolean; data: { unread_count: number } }> {
+    return this.http.get<{ success: boolean; data: { unread_count: number } }>(
+      `${this.apiUrl}/owner/conversations/unread-count`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  getOwnerMessageAttachment(
+    token: string,
+    conversationId: number,
+    attachmentId: number,
+    download = false
+  ): Observable<Blob> {
+    const params = download ? '?download=1' : '';
+    return this.http.get(
+      `${this.apiUrl}/owner/conversations/${conversationId}/attachments/${attachmentId}${params}`,
+      {
+        headers: this.authorizationHeaders(token),
+        responseType: 'blob'
+      }
     );
   }
 

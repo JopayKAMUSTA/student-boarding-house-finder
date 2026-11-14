@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\RentalBill;
 use App\Models\RentalPayment;
+use App\Models\RoomAssignment;
 use App\Models\Tenant;
 use App\Services\RentalBillBalanceCalculator;
+use App\Services\RentalBillingCycle;
 use App\Services\RentalBillGenerator;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -39,14 +41,16 @@ class OwnerRentalBillController extends Controller
                         $validated['tenant_id']
                     )
                 )
-                ->when(
-                    isset($validated['month']),
-                    fn (Builder $query) => $query->whereDate(
-                        'rental_period_start',
-                        $validated['month'].'-01'
-                    )
-                )
             )
+            ->when(isset($validated['month']), function (Builder $query) use ($validated): void {
+                $monthStart = CarbonImmutable::createFromFormat(
+                    '!Y-m',
+                    $validated['month'],
+                    config('app.timezone', 'UTC')
+                );
+                $query->whereYear('rental_period_start', $monthStart->year)
+                    ->whereMonth('rental_period_start', $monthStart->month);
+            })
             ->with([
                 'roomAssignment.tenant',
                 'roomAssignment.boardingHouseRoom.boardingHouse',
@@ -62,7 +66,10 @@ class OwnerRentalBillController extends Controller
         ]);
     }
 
-    public function generationStatus(Request $request): JsonResponse
+    public function generationStatus(
+        Request $request,
+        RentalBillingCycle $cycles
+    ): JsonResponse
     {
         $this->authorizeOwner($request);
         $validated = $request->validate([
@@ -71,17 +78,17 @@ class OwnerRentalBillController extends Controller
         $timezone = config('app.timezone', 'UTC');
         $month = $validated['month'] ?? now($timezone)->format('Y-m');
         abort_if($month > now($timezone)->format('Y-m'), 422, 'Future months cannot be reconciled.');
-        $periodStart = $month.'-01';
-        $periodEnd = \Illuminate\Support\Carbon::parse($periodStart, $timezone)
-            ->endOfMonth()
-            ->toDateString();
+        $monthStart = \Illuminate\Support\Carbon::createFromFormat(
+            '!Y-m',
+            $month,
+            $timezone
+        );
+        $periodStart = $monthStart->toDateString();
+        $periodEnd = $monthStart->copy()->endOfMonth()->toDateString();
 
-        $assignmentIds = \App\Models\RoomAssignment::query()
+        $assignments = RoomAssignment::query()
             ->whereIn('status', ['active', 'moved_out'])
-            ->whereDate('move_in_date', '<=', $periodEnd)
-            ->where(fn (Builder $query) => $query
-                ->whereNull('move_out_date')
-                ->orWhereDate('move_out_date', '>=', $periodStart))
+            ->whereDate('move_in_date', '<', $periodStart)
             ->whereHas(
                 'tenant',
                 fn (Builder $query) => $query->where('owner_id', $request->user()->id)
@@ -90,14 +97,28 @@ class OwnerRentalBillController extends Controller
                 'boardingHouseRoom.boardingHouse',
                 fn (Builder $query) => $query->where('status', 'approved')
             )
-            ->pluck('id');
-        $eligible = $assignmentIds->count();
-        $generated = $eligible === 0
-            ? 0
-            : RentalBill::query()
-                ->whereIn('room_assignment_id', $assignmentIds)
-                ->whereDate('rental_period_start', $periodStart)
-                ->count();
+            ->get();
+        $eligible = 0;
+        $generated = 0;
+        foreach ($assignments as $assignment) {
+            $cycleStart = $cycles->startForMonth($assignment, $monthStart);
+            $cycleEnd = $cycles->endForStart($assignment, $cycleStart);
+            if (
+                $assignment->move_in_date->gt($cycleEnd) ||
+                ($assignment->move_out_date &&
+                    $assignment->move_out_date->lt($cycleStart))
+            ) {
+                continue;
+            }
+
+            $eligible++;
+            $alreadyCovered = RentalBill::query()
+                ->where('room_assignment_id', $assignment->id)
+                ->whereDate('rental_period_start', '<=', $cycleEnd->toDateString())
+                ->whereDate('rental_period_end', '>=', $cycleStart->toDateString())
+                ->exists();
+            $generated += $alreadyCovered ? 1 : 0;
+        }
 
         return response()->json([
             'success' => true,

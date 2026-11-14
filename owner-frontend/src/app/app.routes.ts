@@ -14,6 +14,8 @@ import { RoomDetails } from './pages/rooms/room-details';
 import { OwnerLayout } from './layouts/owner-layout';
 import { TenantManagement } from './pages/tenants/tenant-management';
 import { RentalBills } from './pages/rental-bills/rental-bills';
+import { PaymentMethods } from './pages/payment-methods/payment-methods';
+import { OwnerMessages } from './pages/messages/owner-messages';
 
 
 export const routes: Routes = [
@@ -43,7 +45,12 @@ export const routes: Routes = [
         path: 'owner/boarding-houses/:boardingHouseId/rooms',
         component: RoomManagement
       },
+      {
+        path: 'owner/boarding-houses/:boardingHouseId/payment-methods',
+        component: PaymentMethods
+      },
       { path: 'owner/tenants', component: TenantManagement },
+      { path: 'owner/messages', component: OwnerMessages },
       { path: 'owner/rental-bills', component: RentalBills },
       { path: 'owner-profile', component: OwnerProfile }
     ]

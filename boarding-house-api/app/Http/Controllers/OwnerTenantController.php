@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\BoardinghouseRoom;
 use App\Models\RoomAssignment;
 use App\Models\Tenant;
+use App\Services\RentalBillingCycle;
+use App\Services\RentalBillGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
@@ -144,15 +146,25 @@ class OwnerTenantController extends Controller
         ]);
     }
 
-    public function assign(Request $request, Tenant $tenant): JsonResponse
-    {
+    public function assign(
+        Request $request,
+        Tenant $tenant,
+        RentalBillGenerator $billGenerator,
+        RentalBillingCycle $billingCycles
+    ): JsonResponse {
         $this->authorizeTenant($request, $tenant);
         $validated = $request->validate([
             'boarding_house_room_id' => ['required', 'integer', 'exists:boarding_house_rooms,id'],
             'move_in_date' => ['required', 'date'],
         ]);
 
-        $assignment = DB::transaction(function () use ($request, $tenant, $validated) {
+        $assignment = DB::transaction(function () use (
+            $request,
+            $tenant,
+            $validated,
+            $billGenerator,
+            $billingCycles
+        ) {
             $lockedTenant = $this->lockOwnedTenant($request, $tenant);
             if ($lockedTenant->assignments()->where('status', 'active')->exists()) {
                 throw ValidationException::withMessages([
@@ -173,6 +185,10 @@ class OwnerTenantController extends Controller
             ]);
 
             $this->syncRoomAvailability($room);
+            $billGenerator->generateDueCyclesForAssignment(
+                (int) $assignment->id,
+                $billingCycles
+            );
 
             return $assignment;
         });
@@ -184,15 +200,25 @@ class OwnerTenantController extends Controller
         ], 201);
     }
 
-    public function transfer(Request $request, Tenant $tenant): JsonResponse
-    {
+    public function transfer(
+        Request $request,
+        Tenant $tenant,
+        RentalBillGenerator $billGenerator,
+        RentalBillingCycle $billingCycles
+    ): JsonResponse {
         $this->authorizeTenant($request, $tenant);
         $validated = $request->validate([
             'boarding_house_room_id' => ['required', 'integer', 'exists:boarding_house_rooms,id'],
             'move_in_date' => ['required', 'date'],
         ]);
 
-        $assignment = DB::transaction(function () use ($request, $tenant, $validated) {
+        $assignment = DB::transaction(function () use (
+            $request,
+            $tenant,
+            $validated,
+            $billGenerator,
+            $billingCycles
+        ) {
             $lockedTenant = $this->lockOwnedTenant($request, $tenant);
             $current = $lockedTenant->assignments()
                 ->where('status', 'active')
@@ -252,6 +278,10 @@ class OwnerTenantController extends Controller
 
             $this->syncRoomAvailability($source);
             $this->syncRoomAvailability($destination);
+            $billGenerator->generateDueCyclesForAssignment(
+                (int) $newAssignment->id,
+                $billingCycles
+            );
 
             return $newAssignment;
         });

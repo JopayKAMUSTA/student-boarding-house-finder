@@ -79,9 +79,11 @@ describe('OwnerSidebar rental payments navigation', () => {
       fixture.nativeElement.querySelectorAll('app-owner-sidebar a') as NodeListOf<HTMLAnchorElement>
     );
     const link = links.find((anchor) => anchor.textContent?.includes('Rental Payments'));
+    const messagesLink = links.find((anchor) => anchor.textContent?.includes('Messages'));
 
     expect(link).toBeTruthy();
     expect(link?.getAttribute('href')).toBe('/owner/rental-bills');
+    expect(messagesLink?.getAttribute('href')).toBe('/owner/messages');
     expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('Rental Payments');
 
     link?.click();

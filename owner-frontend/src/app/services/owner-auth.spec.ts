@@ -156,6 +156,56 @@ describe('OwnerAuth', () => {
     });
   });
 
+  it('lists Owner conversations with pagination and bearer authentication', () => {
+    service.getOwnerConversations('owner-token', 2, 20).subscribe();
+    const request = httpTestingController.expectOne(
+      'http://127.0.0.1:8000/api/owner/conversations?page=2&per_page=20'
+    );
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer owner-token');
+    request.flush({
+      success: true,
+      data: { data: [], current_page: 2, last_page: 2, per_page: 20, total: 0 }
+    });
+  });
+
+  it('creates an Owner conversation for the selected tenant and boarding house', () => {
+    const payload = { tenant_id: 8, boarding_house_id: 12 };
+    service.createOwnerConversation('owner-token', payload).subscribe();
+    const request = httpTestingController.expectOne(
+      'http://127.0.0.1:8000/api/owner/conversations'
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer owner-token');
+    expect(request.request.body).toEqual(payload);
+    request.flush({ success: true, data: { id: 21 } });
+  });
+
+  it('sends text and file attachments as multipart form data', () => {
+    const payload = new FormData();
+    payload.append('body', 'Hello tenant');
+    payload.append('attachments[]', new File(['image'], 'photo.png', { type: 'image/png' }));
+    service.sendOwnerConversationMessage('owner-token', 21, payload).subscribe();
+    const request = httpTestingController.expectOne(
+      'http://127.0.0.1:8000/api/owner/conversations/21/messages'
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer owner-token');
+    expect(request.request.body).toBe(payload);
+    request.flush({ success: true, data: { id: 31, attachments: [] } });
+  });
+
+  it('loads private message attachments using the Owner bearer token', () => {
+    service.getOwnerMessageAttachment('owner-token', 21, 31, true).subscribe();
+    const request = httpTestingController.expectOne(
+      'http://127.0.0.1:8000/api/owner/conversations/21/attachments/31?download=1'
+    );
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer owner-token');
+    expect(request.request.responseType).toBe('blob');
+    request.flush(new Blob(['private file'], { type: 'application/pdf' }));
+  });
+
   it('lists rental bills using the owner-authenticated paginated endpoint', () => {
     service.getOwnerRentalBills('owner-token', 2, 25, '2026-11').subscribe();
 
@@ -429,5 +479,31 @@ describe('OwnerAuth', () => {
     expect(request.request.headers.get('Authorization')).toBe('Bearer owner-token');
     expect(request.request.responseType).toBe('blob');
     request.flush(new Blob(['photo']));
+  });
+
+  it('loads owner payment methods through the authenticated API', () => {
+    service.getOwnerPaymentMethods('owner-token', 42).subscribe();
+
+    const request = httpTestingController.expectOne(
+      'http://127.0.0.1:8000/api/owner/boarding-houses/42/payment-methods'
+    );
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer owner-token');
+    request.flush({ success: true, data: [] });
+  });
+
+  it('uses authenticated multipart requests and Laravel method spoofing for payment method updates', () => {
+    const data = new FormData();
+    data.append('provider', 'Maya');
+
+    service.updateOwnerPaymentMethod('owner-token', 42, 5, data).subscribe();
+
+    const request = httpTestingController.expectOne(
+      'http://127.0.0.1:8000/api/owner/boarding-houses/42/payment-methods/5'
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer owner-token');
+    expect(request.request.body.get('_method')).toBe('PUT');
+    request.flush({ success: true, data: { id: 5 } });
   });
 });

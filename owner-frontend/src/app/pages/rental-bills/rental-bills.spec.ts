@@ -176,6 +176,23 @@ describe('RentalBills', () => {
     expect(ownerAuth.getOwnerRentalBillGenerationStatus).toHaveBeenLastCalledWith('owner-token', '2026-10');
   });
 
+  it('creates a future cycle from the move-in anniversary and sets the next anniversary due date', () => {
+    fixture.detectChanges();
+    component.tenants = [makeTenant()];
+    component.tenants[0].current_assignment!.move_in_date = '2026-10-11';
+    component.selectedTenantId = 7;
+    component.rentalMonth = '2026-11';
+
+    component.createBill();
+
+    expect(ownerAuth.createOwnerRentalBill).toHaveBeenCalledWith('owner-token', 7, {
+      room_assignment_id: 31,
+      rental_period_start: '2026-11-11',
+      rental_period_end: '2026-12-10',
+      due_date: '2026-12-11'
+    });
+  });
+
   it('approves a verified tenant payment and refreshes submissions', () => {
     fixture.detectChanges();
     const submission = makePendingPayment(bill);
@@ -340,6 +357,7 @@ function makeBill(): RentalBillInfo {
     billing_policy: 'prorated',
     monthly_rent_snapshot: '3200.00',
     billable_days: 30,
+    billing_period_days: 30,
     days_in_month: 30,
     rental_period_start: '2026-11-01',
     rental_period_end: '2026-11-30',
