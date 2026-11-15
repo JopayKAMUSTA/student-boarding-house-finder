@@ -1,6 +1,6 @@
 
 <div class="register-page">
-  <h1>Create Owner Account</h1>
+  <h1>Create Your TagStay Owner Account</h1>
   <p>Register your account to manage your boarding house listings.</p>
 
 <form (ngSubmit)="createAccount(registerForm)" #registerForm="ngForm">
@@ -43,26 +43,74 @@
       />
     </div>
 
-    <div>
-      <label for="email">Email Address</label>
-      <input
-        type="email"
-        id="email"
-        name="email"
-        ngModel
-        required
-      />
-    </div>
+<div>
+  <label for="contact_number">Contact Number</label>
+  <input
+    type="tel"
+    id="contact_number"
+    name="contact_number"
+    ngModel
+    required
+    minlength="11"
+    maxlength="11"
+    pattern="09[0-9]{9}"
+    inputmode="numeric"
+    placeholder="09XXXXXXXXX"
+  />
+  <small>Enter exactly 11 digits starting with 09.</small>
+</div>
 
-    <div>
-      <label for="contact_number">Contact Number</label>
-      <input
-        type="tel"
-        id="contact_number"
-        name="contact_number"
-        ngModel
-      />
-    </div>
+
+<div>
+  <label for="email">Email Address</label>
+  <input
+    type="email"
+    id="email"
+    name="email"
+    ngModel
+    required
+    email
+    (ngModelChange)="onEmailChange()"
+    #emailModel="ngModel"
+  />
+
+  <button
+    type="button"
+    (click)="sendVerificationCode(registerForm)"
+    [disabled]="isSendingCode || emailModel.invalid || emailVerified"
+  >
+    {{ isSendingCode ? 'Sending Code...' : emailVerified ? 'Email Verified' : 'Send Verification Code' }}
+  </button>
+
+  <div *ngIf="codeSent && !emailVerified">
+    <label for="verification_code">6-Digit Verification Code</label>
+    <input
+      type="text"
+      id="verification_code"
+      name="verification_code"
+      [(ngModel)]="verificationCode"
+      maxlength="6"
+      inputmode="numeric"
+      pattern="[0-9]{6}"
+      required
+    />
+
+    <button
+      type="button"
+      (click)="verifyEmail()"
+      [disabled]="isVerifying || verificationCode.length !== 6"
+    >
+      {{ isVerifying ? 'Verifying...' : 'Verify Email' }}
+    </button>
+  </div>
+
+  <p *ngIf="emailVerified" style="color: green;">
+    Email successfully verified.
+  </p>
+</div>
+
+
+
 
     <div>
       <label for="business_name">Boarding House / Business Name</label>
@@ -93,8 +141,11 @@
           name="password"
           ngModel
           minlength="8"
+          pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}"
           required
+          
         />
+
         <button
           type="button"
           class="password-toggle"
@@ -109,6 +160,10 @@
           </svg>
         </button>
       </div>
+      <small class="password-hint">
+        Minimum 8 characters, with uppercase, lowercase, number,
+        and special character.
+      </small>
     </div>
 
     <div>
@@ -120,6 +175,7 @@
           name="password_confirmation"
           ngModel
           minlength="8"
+          pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}"
           required
         />
         <button

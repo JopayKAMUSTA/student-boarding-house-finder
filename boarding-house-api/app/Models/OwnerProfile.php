@@ -7,14 +7,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OwnerProfile extends Model
 {
-    protected $fillable = [
-        'user_id',
-        'contact_number',
-        'business_name',
-        'business_address',
-        'verification_status',
-        'verified_at',
-    ];
+protected $fillable = [
+    'user_id',
+    'contact_number',
+    'business_name',
+    'business_address',
+    'verification_status',
+    'verified_at',
+    'valid_id_front',
+    'valid_id_back',
+    'rejection_reason',
+];
 
     protected function casts(): array
     {

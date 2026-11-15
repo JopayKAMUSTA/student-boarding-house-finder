@@ -1,9 +1,378 @@
+
 <section class="owner-profile-page" aria-labelledby="owner-profile-heading">
   <header class="page-header">
-    <h2 id="owner-profile-heading">Owner Profile</h2>
-    <p>Manage your owner account information.</p>
+    <div>
+      <h2 id="owner-profile-heading">Owner Profile</h2>
+      <p>Manage your personal information and business details.</p>
+    </div>
   </header>
-  <div class="profile-placeholder">
-    <p>Owner profile editing is not available yet.</p>
+
+  <div *ngIf="isLoading" class="state-message">
+    <span class="loader"></span>
+    <p>Loading your profile...</p>
   </div>
+
+  <div *ngIf="errorMessage" class="alert error-alert">
+    {{ errorMessage }}
+  </div>
+
+  <div *ngIf="successMessage" class="alert success-alert">
+    {{ successMessage }}
+  </div>
+
+  <form *ngIf="!isLoading && profile" (ngSubmit)="saveProfile()" #profileForm="ngForm">
+
+    <div class="profile-card">
+      <div class="card-heading">
+        <div class="heading-icon">01</div>
+        <div>
+          <h3>Personal Information</h3>
+          <p>Your account's personal details.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="first_name">First Name <span>*</span></label>
+          <input id="first_name" name="first_name" type="text"
+            [(ngModel)]="form.first_name" required maxlength="100">
+        </div>
+
+        <div class="form-group">
+          <label for="middle_name">Middle Name</label>
+          <input id="middle_name" name="middle_name" type="text"
+            [(ngModel)]="form.middle_name" maxlength="100">
+        </div>
+
+        <div class="form-group">
+          <label for="last_name">Last Name <span>*</span></label>
+          <input id="last_name" name="last_name" type="text"
+            [(ngModel)]="form.last_name" required maxlength="100">
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email Address <span>*</span></label>
+          <input id="email" name="email" type="email"
+            [(ngModel)]="form.email" required email maxlength="255">
+        </div>
+
+<div class="form-group">
+  <label for="contact_number">Contact Number</label>
+  <input
+    id="contact_number"
+    name="contact_number"
+    type="tel"
+    [(ngModel)]="form.contact_number"
+    (ngModelChange)="onContactNumberChange($event)"
+    maxlength="11"
+    inputmode="numeric"
+    pattern="09[0-9]{9}"
+    #contactModel="ngModel"
+    [class.invalid]="contactModel.invalid && contactModel.touched"
+    placeholder="09XXXXXXXXX"
+  >
+
+  <small class="field-error"
+    *ngIf="contactModel.invalid && contactModel.touched">
+    Enter exactly 11 digits starting with 09.
+  </small>
+</div>
+      </div>
+    </div>
+
+    <div class="profile-card">
+      <div class="card-heading">
+        <div class="heading-icon">02</div>
+        <div>
+          <h3>Business Information</h3>
+          <p>Information about your boarding-house business.</p>
+        </div>
+
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label for="business_name">Business Name</label>
+          <input id="business_name" name="business_name" type="text"
+            [(ngModel)]="form.business_name" maxlength="255"
+            placeholder="Enter your business name">
+        </div>
+
+        <div class="form-group full-width">
+          <label for="business_address">Business Address</label>
+          <textarea id="business_address" name="business_address"
+            [(ngModel)]="form.business_address" rows="3" maxlength="255"
+            placeholder="Enter your business address"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-card identity-card">
+  <div class="card-heading">
+    <div class="heading-icon">03</div>
+    <div>
+      <h3>Identity Verification</h3>
+      <p>Submit a valid ID so the TagStay administrator can verify your owner account.</p>
+    </div>
+  </div>
+
+  <!-- Verification status -->
+  <div class="identity-status">
+    <span>Verification Status</span>
+
+    <strong
+      class="status"
+      [ngClass]="{
+        approved: profile?.profile?.verification_status === 'approved',
+        pending: profile?.profile?.verification_status === 'pending' || (!!profile?.profile?.valid_id_front && !!profile?.profile?.valid_id_back),
+        rejected: profile?.profile?.verification_status === 'rejected',
+        'not-submitted': !profile?.profile?.verification_status && !profile?.profile?.valid_id_front && !profile?.profile?.valid_id_back
+      }">
+      {{ identityVerificationStatus }}
+    </strong>
+  </div>
+
+  <div
+    class="identity-notice info-notice"
+    *ngIf="identityVerificationStatus === 'Not Submitted'">
+    No valid ID has been submitted yet. Please upload both sides of your government-issued ID for verification.
+  </div>
+
+  <div
+    class="identity-notice success-notice"
+    *ngIf="profile?.profile?.verification_status === 'approved'">
+    Your identity has been verified. Thank you for completing your verification.
+  </div>
+
+  <div
+    class="identity-notice pending-notice"
+    *ngIf="profile?.profile?.verification_status === 'pending' || (!!profile?.profile?.valid_id_front && !!profile?.profile?.valid_id_back && profile?.profile?.verification_status !== 'approved')">
+    Your ID documents have been submitted and are awaiting administrator review.
+  </div>
+
+  <div
+    class="identity-notice error-notice"
+    *ngIf="profile?.profile?.verification_status === 'rejected'">
+
+    <strong>Your ID verification was rejected.</strong>
+
+    <p *ngIf="profile?.profile?.rejection_reason">
+      Reason: {{ profile?.profile?.rejection_reason }}
+    </p>
+
+    Please upload your ID documents again.
+  </div>
+
+  <div *ngIf="identityErrorMessage" class="alert error-alert">
+    {{ identityErrorMessage }}
+  </div>
+
+  <div *ngIf="identitySuccessMessage" class="alert success-alert">
+    {{ identitySuccessMessage }}
+  </div>
+
+  <!-- Upload area -->
+  <div
+    *ngIf="
+      canSubmitIdentityDocuments &&
+      profile?.profile?.verification_status !== 'approved' &&
+      !(profile?.profile?.verification_status === 'pending' && profile?.profile?.valid_id_front && profile?.profile?.valid_id_back)
+    ">
+
+    <div class="identity-upload-grid">
+
+      <!-- Front ID -->
+      <div class="form-group">
+        <label for="front_id">Front Side of Valid ID <span>*</span></label>
+
+        <input
+          id="front_id"
+          type="file"
+          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+          (change)="onIdentityFileSelected($event, 'front')"
+          [disabled]="isSubmittingIdentity"
+        />
+
+        <img
+          *ngIf="frontIdPreview"
+          [src]="frontIdPreview"
+          alt="Front side ID preview"
+          class="identity-preview"
+        />
+
+        <small *ngIf="frontIdFile">
+          {{ frontIdFile.name }}
+        </small>
+      </div>
+
+      <!-- Back ID -->
+      <div class="form-group">
+        <label for="back_id">Back Side of Valid ID <span>*</span></label>
+
+        <input
+          id="back_id"
+          type="file"
+          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+          (change)="onIdentityFileSelected($event, 'back')"
+          [disabled]="isSubmittingIdentity"
+        />
+
+        <img
+          *ngIf="backIdPreview"
+          [src]="backIdPreview"
+          alt="Back side ID preview"
+          class="identity-preview"
+        />
+
+        <small *ngIf="backIdFile">
+          {{ backIdFile.name }}
+        </small>
+      </div>
+
+    </div>
+
+    <p class="identity-help">
+      Accepted formats: JPG, PNG, and WEBP. Maximum file size: 5 MB per image.
+    </p>
+
+    <div class="form-actions">
+      <button
+        type="button"
+        class="save-button"
+        (click)="submitIdentityDocuments()"
+        [disabled]="
+          !frontIdFile ||
+          !backIdFile ||
+          isSubmittingIdentity
+        ">
+        {{ isSubmittingIdentity ? 'Submitting...' : 'Submit ID for Verification' }}
+      </button>
+    </div>
+
+  </div>
+</div>
+
+    <div class="profile-card account-card">
+      <div class="card-heading">
+        <div class="heading-icon">03</div>
+        <div>
+          <h3>Account Information</h3>
+          <p>Your account verification details.</p>
+        </div>
+      </div>
+
+      <div class="account-details">
+        <div class="account-detail">
+          <span>Account Role</span>
+          <strong>Owner</strong>
+        </div>
+
+        <div class="account-detail">
+          <span>Verification Status</span>
+          <strong class="status"
+            [ngClass]="profile.profile.verification_status">
+            {{ profile.profile.verification_status | titlecase }}
+          </strong>
+        </div>
+
+        <div class="account-detail">
+          <span>Registration Date</span>
+          <strong>{{ profile.user.created_at | date:'MMMM d, y' }}</strong>
+        </div>
+
+        <div class="account-detail" *ngIf="profile.profile.verified_at">
+          <span>Verified Date</span>
+          <strong>{{ profile.profile.verified_at | date:'MMMM d, y' }}</strong>
+        </div>
+      </div>
+
+      <p class="account-note">
+        Account verification details are managed by the TagStay administrator.
+      </p>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="cancel-button"
+        (click)="loadProfile()" [disabled]="isSaving">
+        Discard Changes
+      </button>
+
+      <button type="submit" class="save-button"
+        [disabled]="isSaving || profileForm.invalid">
+        {{ isSaving ? 'Saving...' : 'Save Changes' }}
+      </button>
+    </div>
+  </form>
+  <section class="profile-card password-card">
+  <div class="card-heading">
+    <div class="heading-icon">SEC</div>
+    <div>
+      <h3>Security & Password</h3>
+      <p>Update your password to keep your account secure.</p>
+    </div>
+  </div>
+
+  <div *ngIf="passwordErrorMessage" class="alert error-alert">
+    {{ passwordErrorMessage }}
+  </div>
+
+  <div *ngIf="passwordSuccessMessage" class="alert success-alert">
+    {{ passwordSuccessMessage }}
+  </div>
+
+  <form (ngSubmit)="changePassword()" #passwordFormRef="ngForm">
+    <div class="form-grid">
+      <div class="form-group full-width">
+        <label for="current_password">Current Password <span>*</span></label>
+        <input
+          id="current_password"
+          type="password"
+          name="current_password"
+          [(ngModel)]="passwordForm.current_password"
+          required
+          autocomplete="current-password"
+          placeholder="Enter your current password"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="new_password">New Password <span>*</span></label>
+        <input
+          id="new_password"
+          type="password"
+          name="new_password"
+          [(ngModel)]="passwordForm.new_password"
+          required
+          minlength="8"
+          autocomplete="new-password"
+          placeholder="At least 8 characters"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="new_password_confirmation">Confirm New Password <span>*</span></label>
+        <input
+          id="new_password_confirmation"
+          type="password"
+          name="new_password_confirmation"
+          [(ngModel)]="passwordForm.new_password_confirmation"
+          required
+          minlength="8"
+          autocomplete="new-password"
+          placeholder="Re-enter your new password"
+        />
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button
+        type="submit"
+        class="save-button"
+        [disabled]="passwordFormRef.invalid || isChangingPassword"
+      >
+        {{ isChangingPassword ? 'Updating...' : 'Change Password' }}
+      </button>
+    </div>
+  </form>
+</section>
 </section>

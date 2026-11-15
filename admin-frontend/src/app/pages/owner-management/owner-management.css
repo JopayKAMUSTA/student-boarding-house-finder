@@ -501,6 +501,101 @@ button:disabled {
 }
 
 /* ==============================
+   IDENTITY VERIFICATION SECTION
+============================== */
+
+.identity-verification-section {
+  padding: 15px 25px 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.identity-verification-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.identity-verification-heading h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
+}
+
+.rejection-reason {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.identity-documents-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.identity-document-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.identity-document-card h4 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.identity-document-card img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: #f8fafc;
+}
+
+.document-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.document-loading {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+.document-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.document-empty {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+}
+
+/* ==============================
    BOARDING HOUSE SECTION
 ============================== */
 
@@ -764,6 +859,19 @@ button:disabled {
   .detail-list {
     grid-template-columns: 1fr;
     padding: 10px 18px;
+  }
+
+  .identity-verification-section {
+    padding: 15px 18px 18px;
+  }
+
+  .identity-verification-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .identity-documents-grid {
+    grid-template-columns: 1fr;
   }
 
   .modal-header {

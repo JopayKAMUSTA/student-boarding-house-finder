@@ -262,6 +262,50 @@ export interface ConversationPageResponse {
   };
 }
 
+
+export interface OwnerProfileData {
+  contact_number: string | null;
+  business_name: string | null;
+  business_address: string | null;
+  verification_status: 'pending' | 'approved' | 'rejected';
+  verified_at: string | null;
+  valid_id_front: string | null;
+  valid_id_back: string | null;
+  rejection_reason: string | null;
+}
+
+export interface OwnerProfileResponse {
+  user: {
+    id: number;
+    first_name: string;
+    middle_name: string;
+    last_name: string;
+    email: string;
+    role: string;
+    created_at: string;
+  };
+  profile: OwnerProfileData;
+}
+
+export interface OwnerIdentitySubmissionResponse {
+  success: boolean;
+  message: string;
+  data: {
+    verification_status: 'pending';
+  };
+}
+
+export interface UpdateOwnerProfileData {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  email: string;
+  contact_number?: string | null;
+  business_name?: string | null;
+  business_address?: string | null;
+}
+
+
 export interface ConversationMessagesResponse {
   success: boolean;
   data: {
@@ -486,11 +530,32 @@ interface OwnerLogoutResponse {
   providedIn: 'root'
 })
 export class OwnerAuth {
+
+  
   private http = inject(HttpClient);
 
   private readonly apiUrl = 'http://127.0.0.1:8000/api';
   private readonly tokenKey = 'owner_token';
   private readonly ownerKey = 'owner_user';
+
+sendRegistrationVerificationCode(
+  email: string
+): Observable<{ success: boolean; message: string }> {
+  return this.http.post<{ success: boolean; message: string }>(
+    `${this.apiUrl}/owner/register/send-verification-code`,
+    { email }
+  );
+}
+
+verifyRegistrationEmail(
+  email: string,
+  code: string
+): Observable<{ success: boolean; message: string }> {
+  return this.http.post<{ success: boolean; message: string }>(
+    `${this.apiUrl}/owner/register/verify-email`,
+    { email, code }
+  );
+}
 
   registerOwner(data: {
     first_name: string;
@@ -584,6 +649,7 @@ export class OwnerAuth {
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.ownerKey);
   }
+  
 
   getOwnerBoardingHouses(
     token: string,
@@ -1018,6 +1084,21 @@ export class OwnerAuth {
     );
   }
 
+  changeOwnerPassword(
+  token: string,
+  data: {
+    current_password: string;
+    new_password: string;
+    new_password_confirmation: string;
+  }
+): Observable<{ message: string }> {
+  return this.http.put<{ message: string }>(
+    `${this.apiUrl}/owner/profile/password`,
+    data,
+    { headers: this.authorizationHeaders(token) }
+  );
+}
+
   moveOutOwnerTenant(
     token: string,
     tenantId: number
@@ -1124,7 +1205,37 @@ export class OwnerAuth {
     );
   }
 
+getOwnerProfile(token: string): Observable<OwnerProfileResponse> {
+  return this.http.get<OwnerProfileResponse>(
+    `${this.apiUrl}/owner/profile`,
+    { headers: this.authorizationHeaders(token) }
+  );
+}
+
+updateOwnerProfile(
+  token: string,
+  data: UpdateOwnerProfileData
+): Observable<{ message: string }> {
+  return this.http.put<{ message: string }>(
+    `${this.apiUrl}/owner/profile`,
+    data,
+    { headers: this.authorizationHeaders(token) }
+  );
+}
+submitOwnerIdentityDocuments(
+  token: string,
+  data: FormData
+): Observable<OwnerIdentitySubmissionResponse> {
+  return this.http.post<OwnerIdentitySubmissionResponse>(
+    `${this.apiUrl}/owner/profile/identity-documents`,
+    data,
+    { headers: this.authorizationHeaders(token) }
+  );
+}
+
   private authorizationHeaders(token: string): HttpHeaders {
     return new HttpHeaders({ Authorization: `Bearer ${token}` });
   }
 }
+
+

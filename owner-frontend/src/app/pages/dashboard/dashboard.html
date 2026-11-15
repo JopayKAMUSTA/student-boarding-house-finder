@@ -2,79 +2,81 @@
   <header class="page-heading">
     <div>
       <h2 id="summary-heading">Dashboard overview</h2>
-      <p>Your boarding-house and room summary.</p>
+      <p>Quick insights into your boarding-house operations.</p>
     </div>
   </header>
 
-  <p *ngIf="isLoadingSummary" role="status" class="notice">Loading your boarding-house summary...</p>
+  <p *ngIf="isLoadingSummary" role="status" class="notice">Loading dashboard summary...</p>
   <p *ngIf="summaryError" role="alert" class="notice notice-error">{{ summaryError }}</p>
 
-  <div class="summary-grid">
-        <article class="card">
-          <span class="icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/></svg>
-          </span>
-          <h3>Total boarding houses</h3>
-          <p class="value" [class.empty]="totalBoardingHouses === null">
-            {{ totalBoardingHouses === null ? 'Not available yet' : totalBoardingHouses }}
-          </p>
-        </article>
-
-        <article class="card">
-          <span class="icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M4 20V9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11M4 20h16M9 13h6"/></svg>
-          </span>
-          <h3>Available rooms</h3>
-          <p class="value" [class.empty]="availableRooms === null">
-            {{ availableRooms === null ? 'Not available yet' : availableRooms }}
-          </p>
-        </article>
-
-        <article class="card">
-          <span class="icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
-          </span>
-          <h3>Occupied rooms</h3>
-          <p class="value" [class.empty]="occupiedRooms === null">
-            {{ occupiedRooms === null ? 'Not available yet' : occupiedRooms }}
-          </p>
-        </article>
-
-        <article class="card">
-          <span class="icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="m3 11 9-7 9 7M5 10v10h8"/>
-              <circle cx="18" cy="17" r="4"/>
-              <path d="M18 15v2l1.5 1"/>
-            </svg>
-          </span>
-          <h3>Pending boarding houses</h3>
-          <p class="value" [class.empty]="pendingBoardingHouses === null">
-            {{ pendingBoardingHouses === null ? 'Not available yet' : pendingBoardingHouses }}
-          </p>
-        </article>
+  <div *ngIf="!isLoadingSummary && summaryCards.length" class="summary-grid">
+    <article *ngFor="let card of summaryCards" class="card stat-card">
+      <p class="card-label">{{ card.label }}</p>
+      <h3 class="value">{{ card.value }}</h3>
+      <p class="card-helper">{{ card.helper }}</p>
+    </article>
   </div>
 
-      <!-- Occupancy bar: only shows when both room numbers exist -->
   <div class="occupancy card" *ngIf="availableRooms !== null && occupiedRooms !== null && (availableRooms + occupiedRooms) > 0">
-        <div class="occupancy-head">
-          <h3>Room occupancy</h3>
-          <strong>{{ (occupiedRooms / (availableRooms + occupiedRooms)) * 100 | number:'1.0-0' }}% occupied</strong>
-        </div>
-        <div class="bar" role="img"
-             [attr.aria-label]="occupiedRooms + ' of ' + (availableRooms + occupiedRooms) + ' rooms occupied'">
-          <span [style.width.%]="(occupiedRooms / (availableRooms + occupiedRooms)) * 100"></span>
-        </div>
-        <div class="legend">
-          <span><i class="dot dot-occupied"></i>Occupied ({{ occupiedRooms }})</span>
-          <span><i class="dot dot-available"></i>Available ({{ availableRooms }})</span>
-        </div>
+    <div class="occupancy-head">
+      <h3>Room occupancy</h3>
+      <strong>{{ (occupiedRooms / (availableRooms + occupiedRooms)) * 100 | number:'1.0-0' }}% occupied</strong>
+    </div>
+    <div class="bar" role="img"
+         [attr.aria-label]="occupiedRooms + ' of ' + (availableRooms + occupiedRooms) + ' rooms occupied'">
+      <span [style.width.%]="(occupiedRooms / (availableRooms + occupiedRooms)) * 100"></span>
+    </div>
+    <div class="legend">
+      <span><i class="dot dot-occupied"></i>Occupied ({{ occupiedRooms }})</span>
+      <span><i class="dot dot-available"></i>Available ({{ availableRooms }})</span>
+    </div>
   </div>
 
-  <div class="hints">
-        <p *ngIf="!isLoadingSummary && totalBoardingHouses !== null &&
-            (availableRooms === null || occupiedRooms === null)">
-          Room totals are shown only when the API returns every boarding house.
-        </p>
+  <div class="dashboard-panels" *ngIf="!isLoadingSummary">
+    <section class="panel card" *ngIf="importantReminders.length">
+      <div class="panel-head">
+        <h3>Important reminders</h3>
+      </div>
+      <ul class="reminder-list">
+        <li *ngFor="let reminder of importantReminders" [ngClass]="reminder.tone">
+          <div class="reminder-copy">
+            <strong>{{ reminder.title }}</strong>
+            <span>{{ reminder.description }}</span>
+          </div>
+          <button
+            *ngIf="reminder.actionLabel && reminder.actionRoute"
+            type="button"
+            class="inline-action-button"
+            (click)="goToOwnerProfile()">
+            {{ reminder.actionLabel }}
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <section class="panel card" *ngIf="recentActivities.length">
+      <div class="panel-head">
+        <h3>Recent activity</h3>
+      </div>
+      <ul class="activity-list">
+        <li *ngFor="let activity of recentActivities">
+          <span class="status-dot" [attr.data-tone]="activity.tone" aria-hidden="true"></span>
+          <div class="activity-copy">
+            <strong>{{ activity.title }}</strong>
+            <p>{{ activity.detail }}</p>
+          </div>
+          <time>{{ activity.timestamp }}</time>
+        </li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="hints" *ngIf="!isLoadingSummary">
+    <p *ngIf="totalBoardingHouses === 0">
+      Add your first boarding house to start tracking occupancy, tenants, and rental payments.
+    </p>
+    <p *ngIf="totalBoardingHouses !== null && totalBoardingHouses > 0 && totalRooms === 0">
+      Room totals are not available for every boarding house yet. Add room details to complete the overview.
+    </p>
   </div>
 </section>

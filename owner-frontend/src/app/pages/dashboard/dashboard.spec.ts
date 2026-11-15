@@ -26,7 +26,23 @@ describe('Dashboard', () => {
           useValue: {
             getOwner: () => null,
             getToken: () => 'test-token',
-            getOwnerBoardingHouses: () => getResponse()
+            getOwnerBoardingHouses: () => getResponse(),
+            getOwnerProfile: () => of({
+              user: { id: 1, first_name: 'Owner', last_name: 'User', email: 'owner@example.com', role: 'owner', created_at: '2026-01-01' },
+              profile: { verification_status: 'approved', contact_number: null, business_name: null, business_address: null, verified_at: null }
+            }),
+            getOwnerTenants: () => of({
+              success: true,
+              data: { data: [], total: 0, current_page: 1, last_page: 1 }
+            }),
+            getOwnerRentalBills: () => of({
+              success: true,
+              data: { data: [], total: 0, current_page: 1, last_page: 1, per_page: 15 }
+            }),
+            getOwnerRentalPaymentSubmissions: () => of({
+              success: true,
+              data: { data: [], total: 0, current_page: 1, last_page: 1, per_page: 15 }
+            })
           }
         }
       ]

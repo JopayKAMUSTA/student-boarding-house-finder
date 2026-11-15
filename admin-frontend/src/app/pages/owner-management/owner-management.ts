@@ -1,4 +1,3 @@
-
 import {
   Component,
   OnInit,
@@ -23,6 +22,9 @@ interface OwnerProfile {
   business_address?: string;
   verification_status?: string;
   verified_at?: string | null;
+  valid_id_front?: string | null;
+  valid_id_back?: string | null;
+  rejection_reason?: string | null;
 }
 
 interface BoardingHouse {
@@ -93,6 +95,14 @@ export class OwnerManagement implements OnInit {
 
   showOwnerModal = false;
 
+  frontIdUrl: string | null = null;
+  backIdUrl: string | null = null;
+  frontIdError = '';
+  backIdError = '';
+  frontIdLoading = false;
+  backIdLoading = false;
+  identityDocumentsLoading = false;
+
   loading = false;
   loadingDetails = false;
   loadingBoardingHouse = false;
@@ -139,6 +149,42 @@ export class OwnerManagement implements OnInit {
     ].filter(Boolean).join(' ');
 
     return owner.name || fullName || 'Unnamed Owner';
+  }
+
+  verificationStatusClass(status?: string | null): string {
+    const normalized = (status ?? '').toLowerCase();
+
+    if (normalized === 'approved') {
+      return 'approved';
+    }
+
+    if (normalized === 'rejected') {
+      return 'rejected';
+    }
+
+    if (normalized === 'pending') {
+      return 'pending';
+    }
+
+    return 'missing';
+  }
+
+  verificationStatusLabel(status?: string | null): string {
+    const normalized = (status ?? '').toLowerCase();
+
+    if (normalized === 'approved') {
+      return 'Approved';
+    }
+
+    if (normalized === 'rejected') {
+      return 'Rejected';
+    }
+
+    if (normalized === 'pending') {
+      return 'Pending';
+    }
+
+    return 'Not Submitted';
   }
 
   // LOAD OWNER LIST
@@ -252,6 +298,9 @@ export class OwnerManagement implements OnInit {
     this.selectedOwner = null;
     this.loadingDetails = true;
     this.errorMessage = '';
+    this.revokeIdentityDocumentUrls();
+    this.frontIdError = '';
+    this.backIdError = '';
 
     this.cdr.detectChanges();
 
@@ -276,6 +325,7 @@ export class OwnerManagement implements OnInit {
 
         if (owner?.id) {
           this.selectedOwner = owner;
+          this.loadIdentityDocuments(owner.id);
 
           console.log('Owner details loaded:', this.selectedOwner);
         } else {
@@ -298,11 +348,114 @@ export class OwnerManagement implements OnInit {
     });
   }
 
+  private revokeIdentityDocumentUrls(): void {
+    if (this.frontIdUrl) {
+      URL.revokeObjectURL(this.frontIdUrl);
+      this.frontIdUrl = null;
+    }
+
+    if (this.backIdUrl) {
+      URL.revokeObjectURL(this.backIdUrl);
+      this.backIdUrl = null;
+    }
+  }
+
+  private loadIdentityDocuments(ownerId: number): void {
+    this.revokeIdentityDocumentUrls();
+    this.frontIdLoading = true;
+    this.backIdLoading = true;
+    this.identityDocumentsLoading = true;
+    this.frontIdError = '';
+    this.backIdError = '';
+    this.cdr.detectChanges();
+
+    this.loadIdentityDocument(ownerId, 'front');
+    this.loadIdentityDocument(ownerId, 'back');
+  }
+
+  private loadIdentityDocument(
+    ownerId: number,
+    side: 'front' | 'back'
+  ): void {
+    const sideLabel = side === 'front' ? 'front' : 'back';
+
+    this.http.get(
+      `${this.apiUrl}/${ownerId}/identity-documents/${side}`,
+      {
+        headers: this.getHeaders(),
+        responseType: 'blob'
+      }
+    ).pipe(
+      finalize(() => {
+        if (side === 'front') {
+          this.frontIdLoading = false;
+        } else {
+          this.backIdLoading = false;
+        }
+
+        if (!this.frontIdLoading && !this.backIdLoading) {
+          this.identityDocumentsLoading = false;
+        }
+
+        this.cdr.detectChanges();
+      })
+    ).subscribe({
+      next: (blob: Blob) => {
+        if (!blob || blob.size === 0) {
+          this.setDocumentError(side, `${sideLabel} ID is empty.`);
+          return;
+        }
+
+        const objectUrl = URL.createObjectURL(blob);
+
+        if (side === 'front') {
+          this.frontIdUrl = objectUrl;
+        } else {
+          this.backIdUrl = objectUrl;
+        }
+
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        if (error?.status === 404) {
+          this.setDocumentError(
+            side,
+            `${side === 'front' ? 'Front' : 'Back'} valid ID not uploaded.`
+          );
+          return;
+        }
+
+        this.setDocumentError(
+          side,
+          `Could not load the ${side === 'front' ? 'front' : 'back'} valid ID.`
+        );
+      }
+    });
+  }
+
+  private setDocumentError(side: 'front' | 'back', message: string): void {
+    if (side === 'front') {
+      this.frontIdError = message;
+      this.frontIdUrl = null;
+    } else {
+      this.backIdError = message;
+      this.backIdUrl = null;
+    }
+
+    this.cdr.detectChanges();
+  }
+
   // CLOSE OWNER DETAILS MODAL
   closeOwnerModal(): void {
     this.showOwnerModal = false;
     this.selectedOwner = null;
     this.loadingDetails = false;
+    this.revokeIdentityDocumentUrls();
+    this.frontIdError = '';
+    this.backIdError = '';
+    this.frontIdLoading = false;
+    this.backIdLoading = false;
+    this.identityDocumentsLoading = false;
 
     this.cdr.detectChanges();
   }

@@ -1,4 +1,3 @@
-
 <div class="owners-page">
   <div class="page-header">
     <div>
@@ -77,38 +76,25 @@
     <!-- OWNER TABLE -->
     <div class="table-wrapper">
       <table>
-        <thead>
-          <tr>
-            <th>Owner</th>
-            <th>Business</th>
-            <th>Contact</th>
-            <th>Boarding Houses</th>
-            <th>Account Status</th>
-            <th>Verification</th>
-            <th>Registered</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
+      <thead>
+        <tr>
+          <th>Owner Name</th>
+          <th>Boarding House</th>
+          <th>Account Status</th>
+          <th>Verification</th>
+          <th>Registered</th>
+          <th>Action</th>
+        </tr>
+      </thead>
 
         <tbody>
           <tr *ngFor="let owner of owners">
             <td>
-              <div class="owner-name">
-                <strong>{{ ownerName(owner) }}</strong>
-                <small>{{ owner.email }}</small>
-              </div>
+              <strong>{{ ownerName(owner) }}</strong>
             </td>
 
             <td>
               {{ owner.owner_profile?.business_name || 'Not provided' }}
-            </td>
-
-            <td>
-              {{ owner.owner_profile?.contact_number || 'Not provided' }}
-            </td>
-
-            <td>
-              {{ owner.boarding_houses_count ?? 0 }}
             </td>
 
             <td>
@@ -134,61 +120,27 @@
             </td>
 
             <td>
-              <div class="action-buttons">
-                <button
-                  type="button"
-                  class="view-button"
-                  (click)="viewOwner(owner.id)"
-                >
-                  View
-                </button>
-
-                <button
-                  type="button"
-                  class="approve-button"
-                  [disabled]="!owner.owner_profile || updatingOwnerId !== null"
-                  (click)="updateVerification(owner, 'approved')"
-                >
-                  Approve
-                </button>
-
-                <button
-                  type="button"
-                  class="reject-button"
-                  [disabled]="!owner.owner_profile || updatingOwnerId !== null"
-                  (click)="updateVerification(owner, 'rejected')"
-                >
-                  Reject
-                </button>
-
-                <button
-                  type="button"
-                  class="suspend-button"
-                  *ngIf="owner.status === 'active'"
-                  [disabled]="updatingOwnerId !== null"
-                  (click)="updateStatus(owner, 'suspended')"
-                >
-                  Suspend
-                </button>
-
-                <button
-                  type="button"
-                  class="activate-button"
-                  *ngIf="owner.status === 'suspended'"
-                  [disabled]="updatingOwnerId !== null"
-                  (click)="updateStatus(owner, 'active')"
-                >
-                  Activate
-                </button>
-              </div>
+              <button
+                type="button"
+                class="view-button"
+                (click)="viewOwner(owner.id)"
+              >
+                Details
+              </button>
             </td>
           </tr>
 
           <tr *ngIf="owners.length === 0 && !loading && !errorMessage">
-            <td colspan="8" class="empty-state">
+            <td colspan="6" class="empty-state">
               No registered owners found.
             </td>
           </tr>
+
+                    <tr *ngIf="owners.length === 0 && !loading && !errorMessage">
+                      <td colspan="8" class="empty-state">
+                        No registered owners found.
+                      </td>
+                    </tr>
         </tbody>
       </table>
     </div>
@@ -330,6 +282,87 @@
           <dd>{{ owner.created_at | date:'MMMM d, y' }}</dd>
         </div>
       </dl>
+
+      <div class="identity-verification-section">
+        <div class="identity-verification-heading">
+          <h3>Identity Verification Documents</h3>
+          <span
+            class="status-badge"
+            [ngClass]="verificationStatusClass(owner.owner_profile?.verification_status)"
+          >
+            {{ verificationStatusLabel(owner.owner_profile?.verification_status) }}
+          </span>
+        </div>
+
+        <p
+          class="rejection-reason"
+          *ngIf="owner.owner_profile?.rejection_reason"
+        >
+          Rejection reason: {{ owner.owner_profile?.rejection_reason }}
+        </p>
+
+        <div class="identity-documents-grid">
+          <div class="identity-document-card">
+            <h4>Front of Valid ID</h4>
+
+            <div *ngIf="frontIdLoading" class="document-state document-loading">
+              Loading front ID...
+            </div>
+
+            <ng-container *ngIf="!frontIdLoading">
+              <img
+                *ngIf="frontIdUrl"
+                [src]="frontIdUrl"
+                alt="Front of valid ID"
+              />
+
+              <div
+                *ngIf="!frontIdUrl && frontIdError"
+                class="document-state document-error"
+              >
+                {{ frontIdError }}
+              </div>
+
+              <div
+                *ngIf="!frontIdUrl && !frontIdError"
+                class="document-state document-empty"
+              >
+                No front ID document uploaded.
+              </div>
+            </ng-container>
+          </div>
+
+          <div class="identity-document-card">
+            <h4>Back of Valid ID</h4>
+
+            <div *ngIf="backIdLoading" class="document-state document-loading">
+              Loading back ID...
+            </div>
+
+            <ng-container *ngIf="!backIdLoading">
+              <img
+                *ngIf="backIdUrl"
+                [src]="backIdUrl"
+                alt="Back of valid ID"
+              />
+
+              <div
+                *ngIf="!backIdUrl && backIdError"
+                class="document-state document-error"
+              >
+                {{ backIdError }}
+              </div>
+
+              <div
+                *ngIf="!backIdUrl && !backIdError"
+                class="document-state document-empty"
+              >
+                No back ID document uploaded.
+              </div>
+            </ng-container>
+          </div>
+        </div>
+      </div>
 
       <!-- OWNER BOARDING HOUSES -->
       <div class="boarding-houses-section">
