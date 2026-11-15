@@ -1,0 +1,704 @@
+
+<div class="owners-page">
+  <div class="page-header">
+    <div>
+      <h1>Owner Management</h1>
+      <p>Manage owner accounts, verification, and boarding-house listings.</p>
+    </div>
+
+    <div class="total-owners">
+      <span>Registered Owners</span>
+      <strong>{{ totalOwners }}</strong>
+    </div>
+  </div>
+
+  <div *ngIf="successMessage" class="notice notice-success" role="status">
+    {{ successMessage }}
+  </div>
+
+  <div *ngIf="errorMessage" class="notice notice-error" role="alert">
+    {{ errorMessage }}
+  </div>
+
+  <div class="owners-card">
+    <div class="filter-section">
+      <input
+        type="text"
+        placeholder="Search owner, email, or business..."
+        [(ngModel)]="search"
+        (input)="onSearchChange()"
+      />
+
+      <select [(ngModel)]="selectedStatus" (change)="applyFilters()">
+        <option value="">All Account Statuses</option>
+        <option value="active">Active</option>
+        <option value="suspended">Suspended</option>
+        <option value="pending">Pending</option>
+      </select>
+
+      <select
+        [(ngModel)]="selectedVerification"
+        (change)="applyFilters()"
+      >
+        <option value="">All Verification Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+      </select>
+
+      <button
+        type="button"
+        class="refresh-button"
+        [disabled]="loading"
+        (click)="loadOwners()"
+      >
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+
+    <!-- INITIAL LOADING -->
+    <div
+      *ngIf="loading && owners.length === 0"
+      class="message"
+      role="status"
+    >
+      Loading owners...
+    </div>
+
+    <!-- REFRESH LOADING -->
+    <div
+      *ngIf="loading && owners.length > 0"
+      class="message loading-small"
+      role="status"
+    >
+      Updating owner records...
+    </div>
+
+    <!-- OWNER TABLE -->
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Owner</th>
+            <th>Business</th>
+            <th>Contact</th>
+            <th>Boarding Houses</th>
+            <th>Account Status</th>
+            <th>Verification</th>
+            <th>Registered</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let owner of owners">
+            <td>
+              <div class="owner-name">
+                <strong>{{ ownerName(owner) }}</strong>
+                <small>{{ owner.email }}</small>
+              </div>
+            </td>
+
+            <td>
+              {{ owner.owner_profile?.business_name || 'Not provided' }}
+            </td>
+
+            <td>
+              {{ owner.owner_profile?.contact_number || 'Not provided' }}
+            </td>
+
+            <td>
+              {{ owner.boarding_houses_count ?? 0 }}
+            </td>
+
+            <td>
+              <span class="status-badge" [ngClass]="owner.status">
+                {{ owner.status | titlecase }}
+              </span>
+            </td>
+
+            <td>
+              <span
+                class="status-badge"
+                [ngClass]="owner.owner_profile?.verification_status || 'missing'"
+              >
+                {{
+                  (owner.owner_profile?.verification_status || 'Missing')
+                    | titlecase
+                }}
+              </span>
+            </td>
+
+            <td>
+              {{ owner.created_at | date:'MMM d, y' }}
+            </td>
+
+            <td>
+              <div class="action-buttons">
+                <button
+                  type="button"
+                  class="view-button"
+                  (click)="viewOwner(owner.id)"
+                >
+                  View
+                </button>
+
+                <button
+                  type="button"
+                  class="approve-button"
+                  [disabled]="!owner.owner_profile || updatingOwnerId !== null"
+                  (click)="updateVerification(owner, 'approved')"
+                >
+                  Approve
+                </button>
+
+                <button
+                  type="button"
+                  class="reject-button"
+                  [disabled]="!owner.owner_profile || updatingOwnerId !== null"
+                  (click)="updateVerification(owner, 'rejected')"
+                >
+                  Reject
+                </button>
+
+                <button
+                  type="button"
+                  class="suspend-button"
+                  *ngIf="owner.status === 'active'"
+                  [disabled]="updatingOwnerId !== null"
+                  (click)="updateStatus(owner, 'suspended')"
+                >
+                  Suspend
+                </button>
+
+                <button
+                  type="button"
+                  class="activate-button"
+                  *ngIf="owner.status === 'suspended'"
+                  [disabled]="updatingOwnerId !== null"
+                  (click)="updateStatus(owner, 'active')"
+                >
+                  Activate
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          <tr *ngIf="owners.length === 0 && !loading && !errorMessage">
+            <td colspan="8" class="empty-state">
+              No registered owners found.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PAGINATION -->
+    <div class="pagination" *ngIf="!loading && totalOwners > 0">
+      <span>
+        Page {{ currentPage }} of {{ lastPage }}
+        ({{ totalOwners }} owners)
+      </span>
+
+      <div>
+        <button
+          type="button"
+          [disabled]="currentPage <= 1"
+          (click)="changePage(currentPage - 1)"
+        >
+          Previous
+        </button>
+
+        <button
+          type="button"
+          [disabled]="currentPage >= lastPage"
+          (click)="changePage(currentPage + 1)"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OWNER DETAILS MODAL -->
+<div
+  class="modal-overlay"
+  *ngIf="showOwnerModal"
+  (click)="closeOwnerModal()"
+>
+  <section
+    class="owner-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="owner-details-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal-header">
+      <div>
+        <h2 id="owner-details-title">Owner Details</h2>
+        <p>Account and business information</p>
+      </div>
+
+      <button
+        type="button"
+        class="close-button"
+        aria-label="Close"
+        (click)="closeOwnerModal()"
+      >
+        &times;
+      </button>
+    </header>
+
+    <!-- LOADING -->
+    <div *ngIf="loadingDetails" class="message">
+      Loading owner details...
+    </div>
+
+    <!-- OWNER INFORMATION -->
+    <div *ngIf="!loadingDetails && selectedOwner as owner">
+      <dl class="detail-list">
+        <div>
+          <dt>User ID</dt>
+          <dd>#{{ owner.id }}</dd>
+        </div>
+
+        <div>
+          <dt>Name</dt>
+          <dd>{{ ownerName(owner) }}</dd>
+        </div>
+
+        <div>
+          <dt>Email</dt>
+          <dd>{{ owner.email }}</dd>
+        </div>
+
+        <div>
+          <dt>Role</dt>
+          <dd>{{ owner.role | titlecase }}</dd>
+        </div>
+
+        <div>
+          <dt>Account Status</dt>
+          <dd>{{ owner.status | titlecase }}</dd>
+        </div>
+
+        <div>
+          <dt>Contact Number</dt>
+          <dd>
+            {{ owner.owner_profile?.contact_number || 'Not provided' }}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Business Name</dt>
+          <dd>
+            {{ owner.owner_profile?.business_name || 'Not provided' }}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Business Address</dt>
+          <dd>
+            {{ owner.owner_profile?.business_address || 'Not provided' }}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Verification Status</dt>
+          <dd>
+            {{
+              (owner.owner_profile?.verification_status || 'Missing')
+                | titlecase
+            }}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Verified At</dt>
+          <dd>
+            {{
+              owner.owner_profile?.verified_at
+                ? (owner.owner_profile?.verified_at | date:'MMMM d, y, h:mm a')
+                : 'Not verified'
+            }}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Registered</dt>
+          <dd>{{ owner.created_at | date:'MMMM d, y' }}</dd>
+        </div>
+      </dl>
+
+      <!-- OWNER BOARDING HOUSES -->
+      <div class="boarding-houses-section">
+        <h3>Owner's Boarding Houses</h3>
+
+        <div
+          *ngIf="!owner.boarding_houses?.length"
+          class="empty-state"
+        >
+          This owner has no registered boarding houses.
+        </div>
+
+        <button
+          type="button"
+          class="boarding-house-item"
+          *ngFor="let house of owner.boarding_houses"
+          (click)="viewBoardingHouse(house)"
+        >
+          <div>
+            <strong>{{ house.name }}</strong>
+            <small>{{ house.city }}, {{ house.barangay }}</small>
+            <small>Click to view full details</small>
+          </div>
+
+          <span class="status-badge" [ngClass]="house.status">
+            {{ house.status | titlecase }}
+          </span>
+        </button>
+      </div>
+
+      <!-- OWNER ACTIONS -->
+      <footer class="modal-actions">
+        <button
+          type="button"
+          class="approve-button"
+          [disabled]="!owner.owner_profile || updatingOwnerId !== null"
+          (click)="updateVerification(owner, 'approved')"
+        >
+          Approve Verification
+        </button>
+
+        <button
+          type="button"
+          class="reject-button"
+          [disabled]="!owner.owner_profile || updatingOwnerId !== null"
+          (click)="updateVerification(owner, 'rejected')"
+        >
+          Reject Verification
+        </button>
+
+        <button
+          type="button"
+          class="suspend-button"
+          *ngIf="owner.status === 'active'"
+          [disabled]="updatingOwnerId !== null"
+          (click)="updateStatus(owner, 'suspended')"
+        >
+          Suspend Account
+        </button>
+
+        <button
+          type="button"
+          class="activate-button"
+          *ngIf="owner.status === 'suspended'"
+          [disabled]="updatingOwnerId !== null"
+          (click)="updateStatus(owner, 'active')"
+        >
+          Activate Account
+        </button>
+
+        <button
+          type="button"
+          class="close-modal-button"
+          (click)="closeOwnerModal()"
+        >
+          Close
+        </button>
+      </footer>
+    </div>
+
+    <!-- ERROR / EMPTY STATE -->
+    <div
+      *ngIf="!loadingDetails && !selectedOwner"
+      class="message"
+    >
+      Owner details could not be loaded.
+    </div>
+  </section>
+</div>
+
+<!-- BOARDING-HOUSE DETAILS MODAL -->
+<div
+  class="modal-overlay boarding-house-modal-overlay"
+  *ngIf="selectedBoardingHouse"
+  (click)="closeBoardingHouseDetails()"
+>
+  <section
+    class="owner-modal boarding-house-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="boarding-house-details-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal-header">
+      <div>
+        <h2 id="boarding-house-details-title">
+          Boarding-House Details
+        </h2>
+        <p>Property information and listing details</p>
+      </div>
+
+      <button
+        type="button"
+        class="close-button"
+        aria-label="Close"
+        (click)="closeBoardingHouseDetails()"
+      >
+        &times;
+      </button>
+    </header>
+
+    <!-- LOADING -->
+    <div *ngIf="loadingBoardingHouse" class="message">
+      Loading boarding-house details...
+    </div>
+
+    <!-- BOARDING-HOUSE INFORMATION -->
+    <div *ngIf="!loadingBoardingHouse">
+      <div
+        *ngIf="boardingHouseError"
+        class="notice notice-error"
+        role="alert"
+      >
+        {{ boardingHouseError }}
+      </div>
+
+      <div class="boarding-house-detail-content">
+        <!-- PROPERTY HEADING -->
+        <div class="boarding-house-detail-heading">
+          <div>
+            <h3>{{ selectedBoardingHouse.name }}</h3>
+            <p>
+              {{
+                selectedBoardingHouse.address ||
+                (selectedBoardingHouse.barangay + ', ' + selectedBoardingHouse.city)
+              }}
+            </p>
+          </div>
+
+          <span
+            class="status-badge"
+            [ngClass]="selectedBoardingHouse.status"
+          >
+            {{ selectedBoardingHouse.status | titlecase }}
+          </span>
+        </div>
+
+        <!-- PROPERTY INFORMATION -->
+        <div class="boarding-house-information">
+          <div>
+            <span>Description</span>
+            <strong>
+              {{ selectedBoardingHouse.description || 'No description provided' }}
+            </strong>
+          </div>
+
+          <div>
+            <span>City</span>
+            <strong>
+              {{ selectedBoardingHouse.city || 'Not provided' }}
+            </strong>
+          </div>
+
+          <div>
+            <span>Barangay</span>
+            <strong>
+              {{ selectedBoardingHouse.barangay || 'Not provided' }}
+            </strong>
+          </div>
+
+          <div>
+            <span>Monthly Rent</span>
+            <strong>
+              {{
+                selectedBoardingHouse.monthly_rent != null
+                  ? (selectedBoardingHouse.monthly_rent | currency:'PHP':'symbol':'1.2-2')
+                  : 'Not provided'
+              }}
+            </strong>
+          </div>
+
+          <div>
+            <span>Security Deposit</span>
+            <strong>
+              {{
+                selectedBoardingHouse.security_deposit != null
+                  ? (selectedBoardingHouse.security_deposit | currency:'PHP':'symbol':'1.2-2')
+                  : 'Not provided'
+              }}
+            </strong>
+          </div>
+
+          <div>
+            <span>Advance Payment</span>
+            <strong>
+              {{
+                selectedBoardingHouse.advance_payment != null
+                  ? (selectedBoardingHouse.advance_payment | currency:'PHP':'symbol':'1.2-2')
+                  : 'Not provided'
+              }}
+            </strong>
+          </div>
+
+          <div>
+            <span>Total Rooms</span>
+            <strong>
+              {{ selectedBoardingHouse.total_rooms ?? 0 }}
+            </strong>
+          </div>
+
+          <div>
+            <span>Available Rooms</span>
+            <strong>
+              {{ selectedBoardingHouse.available_rooms ?? 0 }}
+            </strong>
+          </div>
+
+          <div>
+            <span>Room Type</span>
+            <strong>
+              {{ selectedBoardingHouse.room_type || 'Not provided' }}
+            </strong>
+          </div>
+        </div>
+
+        <!-- AMENITIES -->
+        <div class="boarding-house-amenities">
+          <h3>Amenities</h3>
+
+          <div
+            *ngIf="!selectedBoardingHouse.amenities?.length"
+            class="empty-state"
+          >
+            No amenities listed.
+          </div>
+
+          <div
+            class="amenity-list"
+            *ngIf="selectedBoardingHouse.amenities?.length"
+          >
+            <span
+              *ngFor="let amenity of selectedBoardingHouse.amenities"
+            >
+              {{ amenity }}
+            </span>
+          </div>
+        </div>
+
+        <!-- ROOMS -->
+        <div class="boarding-house-rooms">
+          <h3>Rooms</h3>
+
+          <div
+            *ngIf="!selectedBoardingHouse.rooms?.length"
+            class="empty-state"
+          >
+            No room details available.
+          </div>
+
+          <div
+            class="room-detail-item"
+            *ngFor="let room of selectedBoardingHouse.rooms"
+          >
+            <div>
+              <strong>
+                Room {{ room.room_number || room.id }}
+              </strong>
+
+              <small>
+                {{ room.room_type || 'Room type not specified' }}
+              </small>
+
+              <small>
+                Maximum occupants:
+                {{ room.max_occupants ?? 'Not specified' }}
+              </small>
+            </div>
+
+            <div>
+              <strong>
+                {{
+                  room.monthly_rent != null
+                    ? (room.monthly_rent | currency:'PHP':'symbol':'1.2-2')
+                    : 'Price not provided'
+                }}
+              </strong>
+
+              <small>
+                {{ (room.status || 'Status unavailable') | titlecase }}
+              </small>
+            </div>
+
+            <!-- ROOM AMENITIES -->
+            <div
+              class="room-amenities"
+              *ngIf="room.amenities?.length"
+            >
+              <span *ngFor="let amenity of room.amenities">
+                {{ amenity }}
+              </span>
+            </div>
+
+            <!-- ROOM IMAGES -->
+            <div
+              class="room-images"
+              *ngIf="room.images?.length"
+            >
+              <img
+                *ngFor="let image of room.images"
+                [src]="image"
+                alt="Room image"
+                loading="lazy"
+              />
+            </div>
+
+            <div
+              *ngIf="!room.images?.length"
+              class="empty-state"
+            >
+              No room images available.
+            </div>
+          </div>
+        </div>
+
+        <!-- PROPERTY IMAGES -->
+        <div class="boarding-house-images">
+          <h3>Property Images</h3>
+
+          <div
+            *ngIf="!selectedBoardingHouse.images?.length"
+            class="empty-state"
+          >
+            No separate property images available.
+          </div>
+
+          <div
+            class="boarding-house-image-list"
+            *ngIf="selectedBoardingHouse.images?.length"
+          >
+            <img
+              *ngFor="let image of selectedBoardingHouse.images"
+              [src]="image"
+              alt="Boarding-house property image"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- CLOSE DETAILS -->
+      <footer class="modal-actions">
+        <button
+          type="button"
+          class="close-modal-button"
+          (click)="closeBoardingHouseDetails()"
+        >
+          Close Details
+        </button>
+      </footer>
+    </div>
+  </section>
+</div>

@@ -5,10 +5,9 @@ import { AdminLayoutComponent } from './layouts/admin-layout/admin-layout';
 import { Dashboard } from './pages/dashboard/dashboard';
 import { Login } from './pages/login/login';
 import { Users } from './pages/users/users';
-import { OwnerVerification } from './pages/owner-verification/owner-verification';
 import { BoardingHouses } from './pages/boarding-houses/boarding-houses';
+import { OwnerManagement } from './pages/owner-management/owner-management';
 import { Reports } from './pages/reports/reports';
-import { Settings } from './settings/settings';
 import { authGuard } from './guards/auth-guard';
 
 export const routes: Routes = [
@@ -42,7 +41,7 @@ export const routes: Routes = [
 
       {
         path: 'owners',
-        component: OwnerVerification
+        component: OwnerManagement
       },
 
       {
@@ -51,24 +50,8 @@ export const routes: Routes = [
       },
 
       {
-        path: 'boarding-houses/:boardingHouseId',
-        component: BoardingHouses
-      },
-
-      {
         path: 'reports',
         component: Reports
-      },
-
-      {
-        path: 'settings',
-        component: Settings
-      },
-
-      {
-        path: 'owner-verification',
-        redirectTo: 'owners',
-        pathMatch: 'full'
       }
 
     ]

@@ -1,39 +1,30 @@
 
-import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
-import { finalize } from 'rxjs';
+import { Component, OnInit } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { AuthService } from '../../services/auth';
 
-interface ReportsData {
-  users: {
-    total: number;
-    students: number;
-    owners: number;
-    admins: number;
-    active: number;
-  };
-
-  boarding_houses: {
-    total: number;
-    pending: number;
-    approved: number;
-    rejected: number;
-  };
-
-  monthly_reports: {
-    month: string;
-    users: number;
-    boarding_houses: number;
-  }[];
-
-  year: number;
+interface ReportSummary {
+  total_users: number;
+  total_students: number;
+  total_owners: number;
+  total_admins: number;
+  total_boarding_houses: number;
+  total_rooms: number;
+  total_tenants: number;
+  total_room_assignments: number;
 }
 
-interface ReportsResponse {
-  success: boolean;
-  data: ReportsData;
-  message?: string;
+interface ReportItem {
+  label: string;
+  total: number;
+}
+
+interface MonthlyTrend {
+  month: string;
+  label: string;
+  users: number;
+  boarding_houses: number;
 }
 
 @Component({
@@ -45,97 +36,122 @@ interface ReportsResponse {
 })
 export class Reports implements OnInit {
 
-  private cdr = inject(ChangeDetectorRef);
-
-  private readonly apiUrl = 'http://127.0.0.1:8000/api/admin/reports';
-
-  reports: ReportsData | null = null;
+  private apiUrl = 'http://127.0.0.1:8000/api';
 
   loading = false;
   errorMessage = '';
+  today = new Date();
 
-  constructor(private readonly http: HttpClient) {}
+  summary: ReportSummary | null = null;
+
+  usersByRole: ReportItem[] = [];
+  housesByStatus: ReportItem[] = [];
+  roomsByStatus: ReportItem[] = [];
+  monthlyTrends: MonthlyTrend[] = [];
+
+  constructor(
+    private http: HttpClient,
+    private auth: AuthService
+  ) {}
 
   ngOnInit(): void {
     this.loadReports();
   }
 
   loadReports(): void {
-
     this.loading = true;
     this.errorMessage = '';
 
-    const token = sessionStorage.getItem('admin_token');
-
-    if (!token) {
-      this.loading = false;
-      this.errorMessage = 'Admin session not found. Please log in again.';
-      this.cdr.detectChanges();
-      return;
-    }
-
     const headers = new HttpHeaders({
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json'
+      Authorization: `Bearer ${this.auth.getToken() ?? ''}`,
+      Accept: 'application/json',
     });
 
-    this.http.get<ReportsResponse>(this.apiUrl, { headers })
-      .pipe(
-        finalize(() => {
-          this.loading = false;
-          this.cdr.detectChanges();
-
-          console.log('Reports loading completed.');
-        })
-      )
+    this.http.get<any>(`${this.apiUrl}/admin/reports`, { headers })
       .subscribe({
-
         next: (response) => {
-
-          console.log('Reports response:', response);
-
-          if (
-            response.success &&
-            response.data &&
-            response.data.users &&
-            response.data.boarding_houses
-          ) {
-            this.reports = response.data;
-            this.errorMessage = '';
-          } else {
-            this.errorMessage = 'The reports response was not valid.';
+          if (!response.success) {
+            this.errorMessage = 'Unable to load reports.';
+            this.loading = false;
+            return;
           }
 
-          this.cdr.detectChanges();
+          this.summary = response.summary;
+
+          this.usersByRole = this.toReportItems(
+            response.users_by_role
+          );
+
+          this.housesByStatus = this.toReportItems(
+            response.boarding_houses_by_status
+          );
+
+          this.roomsByStatus = this.toReportItems(
+            response.rooms_by_status
+          );
+
+          this.monthlyTrends = response.monthly_trends ?? [];
+
+          this.loading = false;
         },
-
-        error: (error: HttpErrorResponse) => {
-
-          console.error('Reports error:', error);
+        error: (error) => {
+          console.error('Reports API error:', error);
 
           this.errorMessage =
-            error.error?.message ||
-            'Unable to load reports. Please try again.';
+            error.status === 401
+              ? 'Your session has expired. Please log in again.'
+              : error.error?.message ?? 'Failed to load reports. Please try again.';
 
-          this.cdr.detectChanges();
-        }
-
+          this.loading = false;
+        },
       });
   }
 
-  getBarHeight(value: number): number {
-
-    if (!this.reports?.monthly_reports?.length) {
-      return 0;
+  private toReportItems(
+    data: Record<string, number> | null
+  ): ReportItem[] {
+    if (!data) {
+      return [];
     }
 
+    return Object.entries(data).map(([label, total]) => ({
+      label: this.formatLabel(label),
+      total: Number(total),
+    }));
+  }
+
+  private formatLabel(value: string): string {
+    if (!value) {
+      return 'Unknown';
+    }
+
+    return value
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+
+  getBarWidth(value: number, items: ReportItem[]): number {
     const maximum = Math.max(
-      ...this.reports.monthly_reports.map(item =>
-        Math.max(item.users, item.boarding_houses)
-      ),
+      ...items.map(item => item.total),
       1
     );
 
     return (value / maximum) * 100;
+  }
+
+  getTrendWidth(
+    value: number,
+    key: 'users' | 'boarding_houses'
+  ): number {
+    const maximum = Math.max(
+      ...this.monthlyTrends.map(item => item[key]),
+      1
+    );
+
+    return (value / maximum) * 100;
+  }
+
+  printReport(): void {
+    window.print();
   }
 }

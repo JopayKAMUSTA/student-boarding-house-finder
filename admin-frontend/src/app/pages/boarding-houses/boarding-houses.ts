@@ -1,326 +1,242 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, ChangeDetectorRef, inject } from '@angular/core';
-import { ActivatedRoute, ParamMap, Router } from '@angular/router';
-import { finalize, Subscription } from 'rxjs';
+
 import {
-  AdminBoardingHouse,
-  AdminBoardingHousePageResponse,
-  BoardingHouseStatus,
-  UserService
-} from '../../services/user';
+  Component,
+  OnInit,
+  ChangeDetectorRef
+} from '@angular/core';
+
+import { CommonModule } from '@angular/common';
+
+import {
+  HttpClient,
+  HttpHeaders,
+  HttpParams
+} from '@angular/common/http';
+
+import { finalize } from 'rxjs/operators';
+import { AuthService } from '../../services/auth';
+
+interface BoardingHouse {
+  id: number;
+  owner_id: number;
+  name: string;
+  description: string;
+  city: string;
+  barangay: string;
+  address: string;
+  monthly_rent: string | number;
+  security_deposit: string | number;
+  advance_payment: string | number;
+  available_rooms: number;
+  total_rooms: number;
+  room_type: string;
+  amenities: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  updated_at: string;
+  owner?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  rooms?: any[];
+}
+
+type ListingStatus = 'pending' | 'approved' | 'rejected';
 
 @Component({
   selector: 'app-boarding-houses',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './boarding-houses.html',
-  styleUrl: './boarding-houses.css'
+  styleUrl: './boarding-houses.css',
 })
-export class BoardingHouses implements OnInit, OnDestroy {
-  private cdr = inject(ChangeDetectorRef)
-  readonly statuses: { value: BoardingHouseStatus | ''; label: string }[] = [
-    { value: '', label: 'All statuses' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'rejected', label: 'Rejected' }
-  ];
+export class BoardingHouses implements OnInit {
 
-  boardingHouses: AdminBoardingHouse[] = [];
-  selectedBoardingHouse: AdminBoardingHouse | null = null;
-  statusFilter: BoardingHouseStatus | '' = '';
-  currentPage = 1;
-  lastPage = 1;
-  total = 0;
-  boardingHouseId: number | null = null;
-  detailMode = false;
-  isLoading = false;
-  isDetailLoading = false;
+  private apiUrl = 'http://127.0.0.1:8000/api/admin/boarding-houses';
+
+  boardingHouses: BoardingHouse[] = [];
+
+  activeStatus: ListingStatus = 'pending';
+
+  loading = false;
+  loadingDetails = false;
+
   actionLoadingId: number | null = null;
-  errorMessage = '';
-  successMessage = '';
-  imageUrls = new Map<number, string>();
-  imageLoading = new Set<number>();
-  imageErrors = new Map<number, string>();
 
-  private readonly subscriptions = new Subscription();
-  private readonly imageSubscriptions = new Map<number, Subscription>();
-  private listRequest: Subscription | null = null;
-  private detailRequest: Subscription | null = null;
+  selectedHouse: BoardingHouse | null = null;
+
+  successMessage = '';
+  errorMessage = '';
+
+  totalItems = 0;
 
   constructor(
-    private readonly userService: UserService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router
+    private http: HttpClient,
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
-    this.subscriptions.add(
-      this.route.paramMap.subscribe((params) => this.handleRoute(params))
-    );
+    this.loadBoardingHouses();
   }
 
-  ngOnDestroy(): void {
-    this.subscriptions.unsubscribe();
-    this.clearImagePreviews();
+  private getHeaders(): HttpHeaders {
+    return new HttpHeaders({
+      Accept: 'application/json',
+      Authorization: `Bearer ${this.authService.getToken()}`
+    });
   }
 
-  handleRoute(params: ParamMap): void {
-    const id = params.get('boardingHouseId');
-    this.detailMode = id !== null;
+  loadBoardingHouses(): void {
+    this.loading = true;
     this.errorMessage = '';
+
+    this.cdr.detectChanges();
+
+    const params = new HttpParams()
+      .set('status', this.activeStatus);
+
+    this.http.get<any>(this.apiUrl, {
+      headers: this.getHeaders(),
+      params
+    })
+    .pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.detectChanges();
+      })
+    )
+    .subscribe({
+      next: (response) => {
+        this.boardingHouses = response.data?.data ?? [];
+
+        this.totalItems =
+          response.data?.total ?? this.boardingHouses.length;
+
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        this.boardingHouses = [];
+        this.totalItems = 0;
+
+        this.errorMessage =
+          error.error?.message ||
+          'Unable to load boarding houses. Please check your API connection.';
+
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  changeStatus(status: ListingStatus): void {
+    this.activeStatus = status;
+    this.selectedHouse = null;
     this.successMessage = '';
-
-    if (id === null) {
-      this.detailRequest?.unsubscribe();
-      this.clearImagePreviews();
-      this.boardingHouseId = null;
-      this.selectedBoardingHouse = null;
-      this.loadBoardingHouses();
-      return;
-    }
-
-    this.listRequest?.unsubscribe();
-    const boardingHouseId = Number(id);
-    if (!Number.isInteger(boardingHouseId) || boardingHouseId < 1) {
-      this.detailRequest?.unsubscribe();
-      this.clearImagePreviews();
-      this.boardingHouseId = null;
-      this.selectedBoardingHouse = null;
-      this.errorMessage = 'The boarding house ID is invalid.';
-      return;
-    }
-
-    this.boardingHouseId = boardingHouseId;
-    this.loadDetails(boardingHouseId);
-  }
-
-  retryDetails(): void {
-    if (this.boardingHouseId !== null) {
-      this.loadDetails(this.boardingHouseId);
-    }
-  }
-
-  loadBoardingHouses(page = 1): void {
-    this.listRequest?.unsubscribe();
-    this.isLoading = true;
     this.errorMessage = '';
 
-    this.listRequest = this.userService.getAdminBoardingHouses(this.statusFilter, page)
-        .pipe(finalize(() => {
-          this.isLoading = false;
-          this.cdr.detectChanges();
-        }))
-        .subscribe({
-          next: (response: AdminBoardingHousePageResponse) => {
-            if (
-              !response.success ||
-              !response.data ||
-              !Array.isArray(response.data.data)
-            ) {
-              this.errorMessage = 'The boarding-house list response was not valid.';
-              return;
-            }
-
-            this.boardingHouses = response.data.data;
-            this.currentPage = response.data.current_page;
-            this.lastPage = response.data.last_page;
-            this.total = response.data.total;
-          },
-          error: (error: HttpErrorResponse) => {
-            this.errorMessage = this.getErrorMessage(
-              error,
-              'Unable to load boarding houses. Please try again.'
-            );
-          }
-        });
-    this.subscriptions.add(this.listRequest);
+    this.loadBoardingHouses();
   }
 
-  filterByStatus(status: BoardingHouseStatus | ''): void {
-    this.statusFilter = status;
-    this.loadBoardingHouses(1);
-  }
-
-  onStatusFilterChange(event: Event): void {
-    const status = (event.target as HTMLSelectElement).value;
-    if (status === '' || status === 'pending' || status === 'approved' || status === 'rejected') {
-      this.filterByStatus(status);
-    }
-  }
-
-  changePage(page: number): void {
-    if (!this.isLoading && page >= 1 && page <= this.lastPage) {
-      this.loadBoardingHouses(page);
-    }
-  }
-
-  viewDetails(boardingHouse: AdminBoardingHouse): void {
-    void this.router.navigate(['/boarding-houses', boardingHouse.id]);
-  }
-
-  backToList(): void {
-    void this.router.navigate(['/boarding-houses']);
-  }
-
-  loadDetails(boardingHouseId: number): void {
-    this.detailRequest?.unsubscribe();
-    this.isDetailLoading = true;
+  viewDetails(id: number): void {
+    this.loadingDetails = true;
+    this.selectedHouse = null;
     this.errorMessage = '';
-    this.selectedBoardingHouse = null;
-    this.clearImagePreviews();
 
-    this.detailRequest = this.userService.getAdminBoardingHouse(boardingHouseId)
-        .pipe(finalize(() => {
-          this.isDetailLoading = false;
-          this.cdr.detectChanges();
+    this.cdr.detectChanges();
 
-        }))
-        .subscribe({
-          next: (response) => {
-            if (!response.success || !response.data) {
-              this.errorMessage = 'The boarding-house details response was not valid.';
-              return;
-            }
+    this.http.get<any>(`${this.apiUrl}/${id}`, {
+      headers: this.getHeaders()
+    })
+    .pipe(
+      finalize(() => {
+        this.loadingDetails = false;
+        this.cdr.detectChanges();
+      })
+    )
+    .subscribe({
+      next: (response) => {
+        this.selectedHouse = response.data;
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        this.errorMessage =
+          error.error?.message || 'Unable to load boarding-house details.';
 
-            this.selectedBoardingHouse = response.data;
-            for (const room of response.data.rooms ?? []) {
-              for (const image of room.images ?? []) {
-                this.loadImage(image.id, image.url);
-              }
-            }
-          },
-          error: (error: HttpErrorResponse) => {
-            this.errorMessage = this.getErrorMessage(
-              error,
-              'Unable to load boarding-house details. Please try again.'
-            );
-          }
-        });
-    this.subscriptions.add(this.detailRequest);
+        this.cdr.detectChanges();
+      }
+    });
   }
 
-  decideStatus(
-    boardingHouse: AdminBoardingHouse,
+  closeDetails(): void {
+    this.selectedHouse = null;
+  }
+
+  approveHouse(house: BoardingHouse): void {
+    const confirmed = window.confirm(
+      `Are you sure you want to approve "${house.name}"?`
+    );
+
+    if (confirmed) {
+      this.updateStatus(house, 'approved');
+    }
+  }
+
+  rejectHouse(house: BoardingHouse): void {
+    const confirmed = window.confirm(
+      `Are you sure you want to reject "${house.name}"?`
+    );
+
+    if (confirmed) {
+      this.updateStatus(house, 'rejected');
+    }
+  }
+
+  private updateStatus(
+    house: BoardingHouse,
     status: 'approved' | 'rejected'
   ): void {
-    if (boardingHouse.status !== 'pending' || this.actionLoadingId !== null) {
-      return;
-    }
-
-    const action = status === 'approved' ? 'approve' : 'reject';
-    if (!window.confirm(`Are you sure you want to ${action} this boarding house?`)) {
-      return;
-    }
-
-    this.actionLoadingId = boardingHouse.id;
-    this.errorMessage = '';
+    this.actionLoadingId = house.id;
     this.successMessage = '';
+    this.errorMessage = '';
 
-    this.subscriptions.add(
-      this.userService.updateAdminBoardingHouseStatus(boardingHouse.id, status)
-        .pipe(finalize(() => {
-          this.actionLoadingId = null;
-          this.cdr.detectChanges();
+    this.cdr.detectChanges();
 
-        }))
-        .subscribe({
-          next: (response) => {
-            if (!response.success) {
-              this.errorMessage = 'The listing status was not updated.';
-              return;
-            }
-
-            this.successMessage = response.message;
-            this.loadBoardingHouses(this.currentPage);
-            if (this.detailMode) {
-              this.loadDetails(boardingHouse.id);
-            }
-          },
-          error: (error: HttpErrorResponse) => {
-            this.errorMessage = this.getErrorMessage(
-              error,
-              'Unable to update the listing status. Please try again.'
-            );
-          }
-        })
-    );
-  }
-
-  ownerName(boardingHouse: AdminBoardingHouse): string {
-    const owner = boardingHouse.owner;
-    return owner?.name ||
-      [owner?.first_name, owner?.middle_name, owner?.last_name]
-        .filter((part): part is string => !!part)
-        .join(' ') ||
-      'Unknown owner';
-  }
-
-  formatStatus(status: string): string {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  }
-
-  formatLabel(value: string): string {
-    return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-  }
-
-  private loadImage(imageId: number, imageUrl: string): void {
-    this.imageLoading.add(imageId);
-    this.imageErrors.delete(imageId);
-
-    const imageSubscription = new Subscription();
-    this.imageSubscriptions.set(imageId, imageSubscription);
-    imageSubscription.add(this.userService.getAdminBoardingHouseImage(imageUrl)
-      .pipe(finalize(() => {
-        this.imageLoading.delete(imageId);
+    this.http.patch<any>(
+      `${this.apiUrl}/${house.id}/status`,
+      { status },
+      {
+        headers: this.getHeaders()
+      }
+    )
+    .pipe(
+      finalize(() => {
+        this.actionLoadingId = null;
         this.cdr.detectChanges();
+      })
+    )
+    .subscribe({
+      next: (response) => {
+        this.successMessage =
+          response.message ||
+          `Boarding house ${status} successfully.`;
 
-        if (this.imageSubscriptions.get(imageId) === imageSubscription) {
-          this.imageSubscriptions.delete(imageId);
-        }
-      }))
-      .subscribe({
-        next: (blob) => {
-          this.revokeImageUrl(imageId);
-          this.imageUrls.set(imageId, URL.createObjectURL(blob));
-        },
-        error: () => {
-          this.imageErrors.set(imageId, 'Image could not be loaded.');
-        }
-      }));
+        this.selectedHouse = null;
+        this.loadBoardingHouses();
 
-    this.subscriptions.add(imageSubscription);
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        this.errorMessage =
+          error.error?.message ||
+          `Unable to ${status} this boarding house.`;
+
+        this.cdr.detectChanges();
+      }
+    });
   }
 
-  private clearImagePreviews(): void {
-    for (const subscription of this.imageSubscriptions.values()) {
-      subscription.unsubscribe();
-    }
-    this.imageSubscriptions.clear();
-    this.imageLoading.clear();
-    this.imageErrors.clear();
-
-    for (const imageId of this.imageUrls.keys()) {
-      this.revokeImageUrl(imageId);
-    }
-    this.imageUrls.clear();
-  }
-
-  private revokeImageUrl(imageId: number): void {
-    const url = this.imageUrls.get(imageId);
-    if (url) {
-      URL.revokeObjectURL(url);
-      this.imageUrls.delete(imageId);
-    }
-  }
-
-  private getErrorMessage(error: HttpErrorResponse, fallback: string): string {
-    if (typeof error.error?.message === 'string') {
-      return error.error.message;
-    }
-
-    return error.status === 0
-      ? 'Could not connect to the API. Check that Laravel is running and CORS is configured.'
-      : fallback;
+  getStatusLabel(status: string): string {
+    return status.charAt(0).toUpperCase() + status.slice(1);
   }
 }

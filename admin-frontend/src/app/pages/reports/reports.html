@@ -4,111 +4,209 @@
   <div class="page-header">
     <div>
       <h1>Reports & Analytics</h1>
-      <p>Overview of users and boarding house activities.</p>
+      <p>Overview of users, boarding houses, rooms, and system activity.</p>
     </div>
 
-    <button class="refresh-btn" (click)="loadReports()" [disabled]="loading">
-      {{ loading ? 'Loading...' : 'Refresh Reports' }}
-    </button>
+    <div class="header-actions">
+      <button class="refresh-button" (click)="loadReports()" [disabled]="loading">
+        Refresh
+      </button>
+      <button class="print-button" (click)="printReport()">
+        Print Report
+      </button>
+    </div>
   </div>
 
-  <div *ngIf="loading" class="message loading">
+  <div class="loading-state" *ngIf="loading">
     Loading reports...
   </div>
 
-  <div *ngIf="errorMessage" class="message error">
-    {{ errorMessage }}
+  <div class="error-state" *ngIf="errorMessage">
+    <p>{{ errorMessage }}</p>
+    <button (click)="loadReports()">Try Again</button>
   </div>
 
-  <ng-container *ngIf="reports && !loading">
+  <ng-container *ngIf="!loading && !errorMessage && summary">
 
-    <h2 class="section-title">User Statistics</h2>
-
-    <div class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-label">Total Users</span>
-        <h2>{{ reports.users.total }}</h2>
+    <section class="summary-grid">
+      <div class="summary-card">
+        <span class="card-label">Total Users</span>
+        <strong>{{ summary.total_users }}</strong>
+        <span class="card-description">All registered accounts</span>
       </div>
 
-      <div class="stat-card">
-        <span class="stat-label">Students</span>
-        <h2>{{ reports.users.students }}</h2>
+      <div class="summary-card">
+        <span class="card-label">Students</span>
+        <strong>{{ summary.total_students }}</strong>
+        <span class="card-description">Student accounts</span>
       </div>
 
-      <div class="stat-card">
-        <span class="stat-label">Owners</span>
-        <h2>{{ reports.users.owners }}</h2>
+      <div class="summary-card">
+        <span class="card-label">Owners</span>
+        <strong>{{ summary.total_owners }}</strong>
+        <span class="card-description">Boarding house owners</span>
       </div>
 
-      <div class="stat-card">
-        <span class="stat-label">Administrators</span>
-        <h2>{{ reports.users.admins }}</h2>
+      <div class="summary-card">
+        <span class="card-label">Administrators</span>
+        <strong>{{ summary.total_admins }}</strong>
+        <span class="card-description">Admin accounts</span>
       </div>
 
-      <div class="stat-card">
-        <span class="stat-label">Active Users</span>
-        <h2>{{ reports.users.active }}</h2>
-      </div>
-    </div>
-
-    <h2 class="section-title">Boarding House Statistics</h2>
-
-    <div class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-label">Total Boarding Houses</span>
-        <h2>{{ reports.boarding_houses.total }}</h2>
+      <div class="summary-card">
+        <span class="card-label">Boarding Houses</span>
+        <strong>{{ summary.total_boarding_houses }}</strong>
+        <span class="card-description">Total listings</span>
       </div>
 
-      <div class="stat-card pending">
-        <span class="stat-label">Pending</span>
-        <h2>{{ reports.boarding_houses.pending }}</h2>
+      <div class="summary-card">
+        <span class="card-label">Rooms</span>
+        <strong>{{ summary.total_rooms }}</strong>
+        <span class="card-description">Total registered rooms</span>
       </div>
 
-      <div class="stat-card approved">
-        <span class="stat-label">Approved</span>
-        <h2>{{ reports.boarding_houses.approved }}</h2>
+      <div class="summary-card">
+        <span class="card-label">Tenants</span>
+        <strong>{{ summary.total_tenants }}</strong>
+        <span class="card-description">Recorded tenants</span>
       </div>
 
-      <div class="stat-card rejected">
-        <span class="stat-label">Rejected</span>
-        <h2>{{ reports.boarding_houses.rejected }}</h2>
+      <div class="summary-card">
+        <span class="card-label">Room Assignments</span>
+        <strong>{{ summary.total_room_assignments }}</strong>
+        <span class="card-description">Recorded assignments</span>
       </div>
-    </div>
+    </section>
 
-    <div class="chart-card">
-      <div class="chart-header">
-        <div>
-          <h2>Monthly Overview</h2>
-          <p>User and boarding house registrations</p>
+    <section class="reports-grid">
+
+      <div class="report-card">
+        <div class="section-heading">
+          <h2>Users by Role</h2>
+          <p>Distribution of registered accounts</p>
         </div>
 
-        <span class="year-label">{{ reports.year }}</span>
-      </div>
+        <div class="empty-state" *ngIf="usersByRole.length === 0">
+          No user data available.
+        </div>
 
-      <div class="chart-legend">
-        <span><i class="legend-dot users-dot"></i> Users</span>
-        <span><i class="legend-dot houses-dot"></i> Boarding Houses</span>
-      </div>
-
-      <div class="chart">
-        <div class="chart-item" *ngFor="let item of reports.monthly_reports">
-          <div class="bars">
-            <div
-              class="bar users-bar"
-              [style.height.%]="getBarHeight(item.users)"
-              [title]="'Users: ' + item.users">
+        <div class="bar-list" *ngIf="usersByRole.length > 0">
+          <div class="bar-item" *ngFor="let item of usersByRole">
+            <div class="bar-info">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.total }}</strong>
             </div>
-
-            <div
-              class="bar houses-bar"
-              [style.height.%]="getBarHeight(item.boarding_houses)"
-              [title]="'Boarding Houses: ' + item.boarding_houses">
+            <div class="bar-track">
+              <div
+                class="bar-fill users-fill"
+                [style.width.%]="getBarWidth(item.total, usersByRole)">
+              </div>
             </div>
           </div>
-
-          <span class="month-label">{{ item.month }}</span>
         </div>
       </div>
+
+      <div class="report-card">
+        <div class="section-heading">
+          <h2>Boarding Houses by Status</h2>
+          <p>Listing approval and review status</p>
+        </div>
+
+        <div class="empty-state" *ngIf="housesByStatus.length === 0">
+          No boarding house data available.
+        </div>
+
+        <div class="bar-list" *ngIf="housesByStatus.length > 0">
+          <div class="bar-item" *ngFor="let item of housesByStatus">
+            <div class="bar-info">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.total }}</strong>
+            </div>
+            <div class="bar-track">
+              <div
+                class="bar-fill houses-fill"
+                [style.width.%]="getBarWidth(item.total, housesByStatus)">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-card">
+        <div class="section-heading">
+          <h2>Rooms by Availability</h2>
+          <p>Current room availability status</p>
+        </div>
+
+        <div class="empty-state" *ngIf="roomsByStatus.length === 0">
+          No room data available.
+        </div>
+
+        <div class="bar-list" *ngIf="roomsByStatus.length > 0">
+          <div class="bar-item" *ngFor="let item of roomsByStatus">
+            <div class="bar-info">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.total }}</strong>
+            </div>
+            <div class="bar-track">
+              <div
+                class="bar-fill rooms-fill"
+                [style.width.%]="getBarWidth(item.total, roomsByStatus)">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="report-card trends-card">
+      <div class="section-heading">
+        <h2>Monthly Activity</h2>
+        <p>User registrations and boarding house listings over the last six months</p>
+      </div>
+
+      <div class="trend-legend">
+        <span><i class="legend-users"></i> User Registrations</span>
+        <span><i class="legend-houses"></i> Boarding Houses</span>
+      </div>
+
+      <div class="empty-state" *ngIf="monthlyTrends.length === 0">
+        No monthly activity data available.
+      </div>
+
+      <div class="trend-list" *ngIf="monthlyTrends.length > 0">
+        <div class="trend-row" *ngFor="let item of monthlyTrends">
+          <div class="trend-month">{{ item.label }}</div>
+
+          <div class="trend-bars">
+            <div class="trend-bar-line">
+              <div class="trend-track">
+                <div
+                  class="trend-fill users-fill"
+                  [style.width.%]="getTrendWidth(item.users, 'users')">
+                </div>
+              </div>
+              <strong>{{ item.users }}</strong>
+            </div>
+
+            <div class="trend-bar-line">
+              <div class="trend-track">
+                <div
+                  class="trend-fill houses-fill"
+                  [style.width.%]="getTrendWidth(item.boarding_houses, 'boarding_houses')">
+                </div>
+              </div>
+              <strong>{{ item.boarding_houses }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="report-footer">
+      <span>TagStay Administration</span>
+      <span>Generated: {{ today | date:'longDate' }}</span>
     </div>
 
   </ng-container>
