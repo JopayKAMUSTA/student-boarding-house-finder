@@ -355,3 +355,10 @@ tbody tr:last-child td { border-bottom: 0; }
   .details-dialog { padding: 17px; }
   .assignment-facts { flex-wrap: wrap; gap: 16px 25px; }
 }
+.field-error {
+  display: block;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 5px;
+}

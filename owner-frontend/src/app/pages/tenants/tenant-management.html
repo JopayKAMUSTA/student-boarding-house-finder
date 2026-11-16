@@ -14,47 +14,83 @@
     {{ successMessage }}
   </p>
 
-  <section *ngIf="isAddFormOpen" class="panel" aria-labelledby="add-tenant-heading">
-    <div class="panel-heading">
-      <div>
-        <h2 id="add-tenant-heading">Register a tenant</h2>
-        <p>This creates a tenant record only. It does not create a student login account.</p>
-      </div>
-      <button type="button" class="icon-button" aria-label="Close form" (click)="closeAddForm()">×</button>
+
+<section *ngIf="isAddFormOpen" class="panel" aria-labelledby="add-tenant-heading">
+  <div class="panel-heading">
+    <div>
+      <h2 id="add-tenant-heading">Register a tenant</h2>
+      <p>This creates a tenant record only. It does not create a student login account.</p>
+    </div>
+    <button type="button" class="icon-button" aria-label="Close form" (click)="closeAddForm()">×</button>
+  </div>
+
+  <form #tenantFormRef="ngForm" (ngSubmit)="createTenant(tenantFormRef)">
+    <div class="form-grid">
+      <label>
+        Full name
+        <input name="full_name" type="text" maxlength="255"
+          [(ngModel)]="tenantForm.full_name" required />
+      </label>
+
+      <label>
+        Contact number
+        <input
+          name="contact_number"
+          type="tel"
+          maxlength="11"
+          minlength="11"
+          pattern="^09[0-9]{9}$"
+          placeholder="09XXXXXXXXX"
+          [(ngModel)]="tenantForm.contact_number"
+          #contactNumberRef="ngModel"
+          required
+        />
+        <small class="field-error"
+          *ngIf="contactNumberRef.invalid && (contactNumberRef.dirty || contactNumberRef.touched)">
+          <span *ngIf="contactNumberRef.errors?.['required']">
+            Contact number is required.
+          </span>
+          <span *ngIf="contactNumberRef.errors?.['pattern'] || contactNumberRef.errors?.['minlength']">
+            Must start with 09 and contain exactly 11 digits.
+          </span>
+        </small>
+      </label>
+
+      <label>
+        Emergency contact name <span class="optional">(optional)</span>
+        <input name="emergency_contact_name" type="text" maxlength="255"
+          [(ngModel)]="tenantForm.emergency_contact_name" />
+      </label>
+
+      <label>
+        Emergency contact number <span class="optional">(optional)</span>
+        <input
+          name="emergency_contact_number"
+          type="tel"
+          maxlength="11"
+          minlength="11"
+          pattern="^09[0-9]{9}$"
+          placeholder="09XXXXXXXXX"
+          [(ngModel)]="tenantForm.emergency_contact_number"
+          #emergencyNumberRef="ngModel"
+        />
+        <small class="field-error"
+          *ngIf="emergencyNumberRef.invalid && (emergencyNumberRef.dirty || emergencyNumberRef.touched)">
+          Must start with 09 and contain exactly 11 digits.
+        </small>
+      </label>
     </div>
 
-    <form #tenantFormRef="ngForm" (ngSubmit)="createTenant(tenantFormRef)">
-      <div class="form-grid">
-        <label>
-          Full name
-          <input name="full_name" type="text" maxlength="255"
-            [(ngModel)]="tenantForm.full_name" required />
-        </label>
-        <label>
-          Contact number
-          <input name="contact_number" type="tel" maxlength="30"
-            [(ngModel)]="tenantForm.contact_number" required />
-        </label>
-        <label>
-          Emergency contact name <span class="optional">(optional)</span>
-          <input name="emergency_contact_name" type="text" maxlength="255"
-            [(ngModel)]="tenantForm.emergency_contact_name" />
-        </label>
-        <label>
-          Emergency contact number <span class="optional">(optional)</span>
-          <input name="emergency_contact_number" type="tel" maxlength="30"
-            [(ngModel)]="tenantForm.emergency_contact_number" />
-        </label>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn btn-outline" (click)="closeAddForm()"
-          [disabled]="isCreatingTenant">Cancel</button>
-        <button type="submit" class="btn btn-primary" [disabled]="isCreatingTenant">
-          {{ isCreatingTenant ? 'Saving...' : 'Register Tenant' }}
-        </button>
-      </div>
-    </form>
-  </section>
+    <div class="form-actions">
+      <button type="button" class="btn btn-outline" (click)="closeAddForm()"
+        [disabled]="isCreatingTenant">Cancel</button>
+      <button type="submit" class="btn btn-primary" [disabled]="isCreatingTenant">
+        {{ isCreatingTenant ? 'Saving...' : 'Register Tenant' }}
+      </button>
+    </div>
+  </form>
+</section>
+
 
   <div *ngIf="errorMessage" role="alert" class="notice notice-error">
     <p>{{ errorMessage }}</p>

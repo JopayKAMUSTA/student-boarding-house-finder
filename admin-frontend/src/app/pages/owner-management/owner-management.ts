@@ -220,10 +220,13 @@ export class OwnerManagement implements OnInit {
       headers: this.getHeaders(),
       params
     }).pipe(
-      finalize(() => {
-        this.loading = false;
-        this.cdr.detectChanges();
-      })
+finalize(() => {
+  console.log('FINALIZE EXECUTED');
+  this.loading = false;
+  console.log('LOADING:', this.loading);
+  console.log('OWNERS:', this.owners.length);
+  this.cdr.detectChanges();
+})
     ).subscribe({
 
       next: (response) => {

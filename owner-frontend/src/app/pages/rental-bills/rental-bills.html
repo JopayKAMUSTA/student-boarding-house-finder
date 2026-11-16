@@ -148,59 +148,44 @@
     </div>
 
     <div *ngIf="!isLoadingBills && !billsError && filteredBills.length" class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Tenant</th>
-            <th>Boarding house / room</th>
-            <th>Rental period</th>
-            <th>Original rent</th>
-            <th>Daily fee</th>
-            <th>Grace</th>
-            <th>Overdue days</th>
-            <th>Late fees</th>
-            <th>Payments</th>
-            <th>Remaining rent</th>
-            <th>Total outstanding</th>
-            <th>Due date</th>
-            <th>Status</th>
-            <th><span class="visually-hidden">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let bill of filteredBills; trackBy: trackBill">
-            <th scope="row">{{ bill.room_assignment.tenant.full_name }}</th>
-            <td>
-              {{ bill.room_assignment.boarding_house_room.boarding_house.name || '—' }}
-              <small>Room {{ bill.room_assignment.boarding_house_room.room_number }}</small>
-            </td>
-            <td>{{ bill.rental_period_start | date:'mediumDate' }} – {{ bill.rental_period_end | date:'mediumDate' }}</td>
-            <td>{{ money(bill.original_amount) }}</td>
-            <td>
-              {{ money(bill.daily_late_fee_snapshot ?? 0) }}/day
-              <small *ngIf="dailyFeeDisabled(bill)">Disabled</small>
-            </td>
-            <td>{{ bill.grace_period_days_snapshot ?? 0 }} days</td>
-            <td>{{ bill.overdue_days }}</td>
-            <td>{{ money(bill.accumulated_late_fee) }}</td>
-            <td>
-              {{ money(bill.total_payments) }}
-              <small *ngIf="hasFutureDatedPayments(bill)">
-                {{ money(bill.future_dated_payment_total) }} future-dated
-              </small>
-            </td>
-            <td>{{ money(bill.remaining_balance) }}</td>
-            <td><strong>{{ money(bill.total_outstanding) }}</strong></td>
-            <td>{{ bill.due_date | date:'mediumDate' }}</td>
-            <td><span class="status" [class]="bill.is_voided ? 'status voided' : 'status ' + bill.payment_status">
-              {{ statusLabel(bill) | titlecase }}
-            </span></td>
-            <td><button type="button" class="btn btn-outline btn-small" (click)="openBill(bill)">
-              Details
-            </button></td>
-          </tr>
-        </tbody>
-      </table>
+<table>
+  <thead>
+    <tr>
+      <th>Tenant</th>
+      <th>Boarding house / room</th>
+      <th>Billing period</th>
+      <th>Amount due</th>
+      <th>Due date</th>
+      <th>Status</th>
+      <th><span class="visually-hidden">Actions</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let bill of filteredBills; trackBy: trackBill">
+      <th scope="row">{{ bill.room_assignment.tenant.full_name }}</th>
+      <td>
+        {{ bill.room_assignment.boarding_house_room.boarding_house.name || '—' }}
+        <small>Room {{ bill.room_assignment.boarding_house_room.room_number }}</small>
+      </td>
+      <td>
+        {{ bill.rental_period_start | date:'mediumDate' }} –
+        {{ bill.rental_period_end | date:'mediumDate' }}
+      </td>
+      <td><strong>{{ money(bill.total_outstanding) }}</strong></td>
+      <td>{{ bill.due_date | date:'mediumDate' }}</td>
+      <td>
+        <span class="status" [class]="bill.is_voided ? 'status voided' : 'status ' + bill.payment_status">
+          {{ statusLabel(bill) | titlecase }}
+        </span>
+      </td>
+      <td>
+        <button type="button" class="btn btn-outline btn-small" (click)="openBill(bill)">
+          Details
+        </button>
+      </td>
+    </tr>
+  </tbody>
+</table>
     </div>
 
     <nav *ngIf="lastPage > 1" aria-label="Rental bill pages" class="pagination">
@@ -345,9 +330,9 @@
           class="record-payment" aria-labelledby="record-payment-title">
           <h3 id="record-payment-title">Record a payment</h3>
           <p>
-            Current total outstanding: <strong>{{ money(selectedBill.total_outstanding) }}</strong>.
-            The backend validates the payment against the balance on the payment date.
-          </p>
+  Current total outstanding: <strong>{{ money(selectedBill.total_outstanding) }}</strong>.
+  Enter the amount received. TagStay will check the remaining balance based on the selected payment date.
+</p>
           <form (ngSubmit)="recordPayment()">
             <div class="form-grid">
               <label>

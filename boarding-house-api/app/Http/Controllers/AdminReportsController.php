@@ -10,95 +10,96 @@ class AdminReportsController extends Controller
 {
     public function index(Request $request)
     {
-        // Only administrators can access reports.
         if (!$request->user() || $request->user()->role !== 'admin') {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Admin access required.'
+                'message' => 'Unauthorized. Admin access required.',
             ], 403);
         }
 
-        $year = now()->year;
+        // SUMMARY STATISTICS
+        $summary = [
+            'total_users' => DB::table('users')->count(),
 
-        // USER STATISTICS
-        $totalUsers = DB::table('users')->count();
+            'total_students' => DB::table('users')
+                ->where('role', 'student')
+                ->count(),
 
-        $totalStudents = DB::table('users')
-            ->where('role', 'student')
-            ->count();
+            'total_owners' => DB::table('users')
+                ->where('role', 'owner')
+                ->count(),
 
-        $totalOwners = DB::table('users')
-            ->where('role', 'owner')
-            ->count();
+            'total_admins' => DB::table('users')
+                ->where('role', 'admin')
+                ->count(),
 
-        $totalAdmins = DB::table('users')
-            ->where('role', 'admin')
-            ->count();
+            'total_boarding_houses' => DB::table('boarding_houses')->count(),
 
-        $activeUsers = DB::table('users')
-            ->where('status', 'active')
-            ->count();
+            'total_rooms' => DB::table('boarding_house_rooms')->count(),
 
-        // BOARDING HOUSE STATISTICS
-        $totalBoardingHouses = DB::table('boarding_houses')->count();
+            'total_tenants' => DB::table('tenants')->count(),
 
-        $pendingBoardingHouses = DB::table('boarding_houses')
-            ->where('status', 'pending')
-            ->count();
+            'total_room_assignments' => DB::table('room_assignments')->count(),
+        ];
 
-        $approvedBoardingHouses = DB::table('boarding_houses')
-            ->where('status', 'approved')
-            ->count();
+        // USERS BY ROLE
+        $usersByRole = DB::table('users')
+            ->select('role')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('role')
+            ->pluck('total', 'role')
+            ->all();
 
-        $rejectedBoardingHouses = DB::table('boarding_houses')
-            ->where('status', 'rejected')
-            ->count();
+        // BOARDING HOUSES BY STATUS
+        $housesByStatus = DB::table('boarding_houses')
+            ->select('status')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->all();
 
-        // MONTHLY USER REGISTRATIONS
-        $monthlyUsers = DB::table('users')
-            ->selectRaw('MONTH(created_at) as month, COUNT(*) as total')
-            ->whereYear('created_at', $year)
-            ->groupByRaw('MONTH(created_at)')
-            ->pluck('total', 'month');
+        // ROOMS BY AVAILABILITY
+        $roomsByStatus = DB::table('boarding_house_rooms')
+            ->select('availability_status')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('availability_status')
+            ->pluck('total', 'availability_status')
+            ->all();
 
-        // MONTHLY BOARDING HOUSE SUBMISSIONS
-        $monthlyBoardingHouses = DB::table('boarding_houses')
-            ->selectRaw('MONTH(created_at) as month, COUNT(*) as total')
-            ->whereYear('created_at', $year)
-            ->groupByRaw('MONTH(created_at)')
-            ->pluck('total', 'month');
+        // MONTHLY ACTIVITY: LAST SIX MONTHS
+        $firstMonth = now()->startOfMonth()->subMonths(5);
 
-        $monthlyReports = [];
+        $monthlyTrends = [];
 
-        for ($month = 1; $month <= 12; $month++) {
-            $monthlyReports[] = [
-                'month' => Carbon::create($year, $month, 1)->format('M'),
-                'users' => (int) ($monthlyUsers[$month] ?? 0),
-                'boarding_houses' => (int) ($monthlyBoardingHouses[$month] ?? 0),
+        for ($i = 0; $i < 6; $i++) {
+            $monthStart = $firstMonth->copy()->addMonths($i);
+            $nextMonth = $monthStart->copy()->addMonth();
+
+            $users = DB::table('users')
+                ->where('created_at', '>=', $monthStart)
+                ->where('created_at', '<', $nextMonth)
+                ->count();
+
+            $boardingHouses = DB::table('boarding_houses')
+                ->where('created_at', '>=', $monthStart)
+                ->where('created_at', '<', $nextMonth)
+                ->count();
+
+            $monthlyTrends[] = [
+                'month' => $monthStart->format('Y-m'),
+                'label' => $monthStart->format('M Y'),
+                'users' => $users,
+                'boarding_houses' => $boardingHouses,
             ];
         }
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'users' => [
-                    'total' => $totalUsers,
-                    'students' => $totalStudents,
-                    'owners' => $totalOwners,
-                    'admins' => $totalAdmins,
-                    'active' => $activeUsers,
-                ],
-
-                'boarding_houses' => [
-                    'total' => $totalBoardingHouses,
-                    'pending' => $pendingBoardingHouses,
-                    'approved' => $approvedBoardingHouses,
-                    'rejected' => $rejectedBoardingHouses,
-                ],
-
-                'monthly_reports' => $monthlyReports,
-                'year' => $year,
-            ],
+            'summary' => $summary,
+            'users_by_role' => (object) $usersByRole,
+            'boarding_houses_by_status' => (object) $housesByStatus,
+            'rooms_by_status' => (object) $roomsByStatus,
+            'monthly_trends' => $monthlyTrends,
         ]);
     }
 }

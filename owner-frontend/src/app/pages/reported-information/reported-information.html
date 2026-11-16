@@ -1,0 +1,185 @@
+<div class="reported-page">
+  <div class="page-header">
+    <div>
+      <h1>Report Information</h1>
+      <p>Submit a report about a tenant under your management.</p>
+    </div>
+  </div>
+
+  <div class="info-banner">
+    <span class="info-icon">i</span>
+    <p>
+      Provide accurate details and supporting evidence. Your report will be
+      reviewed by the administrator before any action is taken.
+    </p>
+  </div>
+
+  <div class="report-card">
+    <div class="card-heading">
+      <h2>Submit a Report</h2>
+      <p>Fields marked with <span class="required">*</span> are required.</p>
+    </div>
+
+    <div *ngIf="successMessage" class="alert success-alert">
+      {{ successMessage }}
+    </div>
+
+    <div *ngIf="errorMessage" class="alert error-alert">
+      {{ errorMessage }}
+    </div>
+
+    <div *ngIf="isLoading" class="loading-state">
+      Loading your tenants...
+    </div>
+
+    <form
+      *ngIf="!isLoading"
+      #reportForm="ngForm"
+      (ngSubmit)="submitReport(reportForm)"
+    >
+      <div class="form-grid">
+
+        <div class="form-group full-width">
+          <label for="targetId">
+            Select Tenant <span class="required">*</span>
+          </label>
+
+          <select
+            id="targetId"
+            name="targetId"
+            [(ngModel)]="selectedTargetId"
+            required
+            [disabled]="tenants.length === 0"
+          >
+            <option [ngValue]="null" disabled>
+              Select a tenant
+            </option>
+
+            <option
+              *ngFor="let tenant of tenants"
+              [ngValue]="tenant.id"
+            >
+              {{ tenant.full_name }}
+            </option>
+          </select>
+
+          <small
+            *ngIf="tenants.length === 0"
+            class="field-hint"
+          >
+            You currently have no registered tenants.
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label for="category">
+            Report Category <span class="required">*</span>
+          </label>
+
+          <select
+            id="category"
+            name="category"
+            [(ngModel)]="category"
+            required
+          >
+            <option value="" disabled>Select a category</option>
+
+            <option *ngFor="let item of categories" [value]="item">
+              {{ item }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="title">
+            Report Title <span class="required">*</span>
+          </label>
+
+          <input
+            id="title"
+            name="title"
+            type="text"
+            [(ngModel)]="title"
+            maxlength="255"
+            placeholder="Enter a short title for your report"
+            required
+          />
+        </div>
+
+        <div class="form-group full-width">
+          <label for="description">
+            Description <span class="required">*</span>
+          </label>
+
+          <textarea
+            id="description"
+            name="description"
+            [(ngModel)]="description"
+            rows="6"
+            maxlength="5000"
+            placeholder="Explain what happened. Include relevant dates and details."
+            required
+          ></textarea>
+
+          <small class="field-hint">
+            Maximum of 5,000 characters.
+          </small>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="evidence">Supporting Evidence</label>
+
+          <div class="upload-area">
+            <input
+              id="evidence"
+              type="file"
+              accept=".jpg,.jpeg,.png,.pdf"
+              multiple
+              (change)="onFilesSelected($event)"
+            />
+
+            <p>Attach screenshots, photos, or PDF documents.</p>
+
+            <small>
+              Maximum 5 files, 5 MB each. JPG, PNG, or PDF only.
+            </small>
+          </div>
+
+          <div *ngIf="evidenceFiles.length" class="file-list">
+            <div
+              class="file-item"
+              *ngFor="let file of evidenceFiles; let i = index"
+            >
+              <span class="file-name">{{ file.name }}</span>
+
+              <button
+                type="button"
+                class="remove-file"
+                (click)="removeEvidence(i)"
+                aria-label="Remove file"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="form-footer">
+        <p>
+          Your report and submitted evidence will be sent to the
+          administrator for review.
+        </p>
+
+        <button
+          type="submit"
+          class="submit-button"
+          [disabled]="isSubmitting || isLoading || tenants.length === 0"
+        >
+          {{ isSubmitting ? 'Submitting...' : 'Submit Report' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

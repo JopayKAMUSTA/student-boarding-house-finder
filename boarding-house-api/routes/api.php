@@ -1,4 +1,4 @@
-    <?php
+<?php
 
     use App\Models\User;
     use Illuminate\Http\Request;
@@ -15,6 +15,7 @@
     use App\Http\Controllers\AdminBoardinghouseController;
     use App\Http\Controllers\AdminOwnerController;
     use App\Http\Controllers\AdminReportsController;
+    use App\Http\Controllers\AdminReportedInformationController;
     use App\Http\Controllers\OwnerBoardingHouseRoomController;
     use App\Http\Controllers\OwnerBoardingHousePaymentMethodController;
     use App\Http\Controllers\OwnerConversationController;
@@ -28,6 +29,7 @@
     use App\Http\Controllers\AdminDashboardController;
     use App\Http\Controllers\OwnerProfileController;
     use Illuminate\Support\Facades\Mail;
+    use App\Http\Controllers\ReportController;
 
     /*
     |--------------------------------------------------------------------------
@@ -184,6 +186,21 @@
             AdminDashboardController::class,
             'index',
         ]);
+               // REPORTED INFORMATION MANAGEMENT
+        Route::get('/reported-information', [
+            AdminReportedInformationController::class,
+            'index',
+        ]);
+
+        Route::get('/reported-information/{report}', [
+            AdminReportedInformationController::class,
+            'show',
+        ]);
+
+        Route::patch('/reported-information/{report}', [
+            AdminReportedInformationController::class,
+            'update',
+        ]);
 
  // ADMIN OWNER MANAGEMENT
     // ADMIN OWNER MANAGEMENT
@@ -202,15 +219,21 @@
         'viewIdentityDocument',
     ]);
 
-    Route::patch('/owners/{owner}/verification', [
+        Route::patch('/owners/{owner}/verification', [
         AdminOwnerController::class,
         'updateVerification',
     ]);
 
-        Route::get('/boarding-houses/{boardingHouse}', [
-            AdminBoardinghouseController::class,
-            'show',
-        ]);
+    // ADMIN BOARDING HOUSES
+    Route::get('/boarding-houses', [
+        AdminBoardinghouseController::class,
+        'index',
+    ]);
+
+    Route::get('/boarding-houses/{boardingHouse}', [
+        AdminBoardinghouseController::class,
+        'show',
+    ]);
 
         Route::patch('/boarding-houses/{boardingHouse}/status', [
             AdminBoardinghouseController::class,
@@ -603,6 +626,11 @@ if (!$emailVerified) {
             'unreadCount',
         ]);
 
+            Route::post('/student/reported-information', [
+            ReportController::class,
+                'store',
+            ]);
+
         Route::get('/student/conversations', [
             StudentConversationController::class,
             'index',
@@ -786,6 +814,8 @@ if (!$emailVerified) {
     |--------------------------------------------------------------------------
     */
 
+    
+
     Route::middleware('auth:sanctum')
         ->prefix('owner')
         ->group(function () {
@@ -801,6 +831,7 @@ if (!$emailVerified) {
     'submitIdentityDocuments',
 ]);
 
+
     Route::put('/profile/password', [
     OwnerProfileController::class,
     'changePassword',
@@ -810,7 +841,10 @@ if (!$emailVerified) {
         OwnerProfileController::class,
         'update',
     ]);
-
+Route::post('/reported-information', [
+    ReportController::class,
+    'store',
+]);
             // Owner-tenant messaging
             Route::get('/conversations/recipients', [
                 OwnerConversationController::class,

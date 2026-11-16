@@ -1,214 +1,261 @@
-
 <div class="reports-page">
 
   <div class="page-header">
     <div>
-      <h1>Reports & Analytics</h1>
-      <p>Overview of users, boarding houses, rooms, and system activity.</p>
+      <h1>Reported Information Management</h1>
+      <p>Review, investigate, and manage reports submitted by owners and students.</p>
     </div>
 
     <div class="header-actions">
       <button class="refresh-button" (click)="loadReports()" [disabled]="loading">
         Refresh
       </button>
-      <button class="print-button" (click)="printReport()">
-        Print Report
-      </button>
     </div>
   </div>
 
-  <div class="loading-state" *ngIf="loading">
-    Loading reports...
-  </div>
-
-  <div class="error-state" *ngIf="errorMessage">
-    <p>{{ errorMessage }}</p>
-    <button (click)="loadReports()">Try Again</button>
-  </div>
-
-  <ng-container *ngIf="!loading && !errorMessage && summary">
-
-    <section class="summary-grid">
-      <div class="summary-card">
-        <span class="card-label">Total Users</span>
-        <strong>{{ summary.total_users }}</strong>
-        <span class="card-description">All registered accounts</span>
-      </div>
-
-      <div class="summary-card">
-        <span class="card-label">Students</span>
-        <strong>{{ summary.total_students }}</strong>
-        <span class="card-description">Student accounts</span>
-      </div>
-
-      <div class="summary-card">
-        <span class="card-label">Owners</span>
-        <strong>{{ summary.total_owners }}</strong>
-        <span class="card-description">Boarding house owners</span>
-      </div>
-
-      <div class="summary-card">
-        <span class="card-label">Administrators</span>
-        <strong>{{ summary.total_admins }}</strong>
-        <span class="card-description">Admin accounts</span>
-      </div>
-
-      <div class="summary-card">
-        <span class="card-label">Boarding Houses</span>
-        <strong>{{ summary.total_boarding_houses }}</strong>
-        <span class="card-description">Total listings</span>
-      </div>
-
-      <div class="summary-card">
-        <span class="card-label">Rooms</span>
-        <strong>{{ summary.total_rooms }}</strong>
-        <span class="card-description">Total registered rooms</span>
-      </div>
-
-      <div class="summary-card">
-        <span class="card-label">Tenants</span>
-        <strong>{{ summary.total_tenants }}</strong>
-        <span class="card-description">Recorded tenants</span>
-      </div>
-
-      <div class="summary-card">
-        <span class="card-label">Room Assignments</span>
-        <strong>{{ summary.total_room_assignments }}</strong>
-        <span class="card-description">Recorded assignments</span>
-      </div>
-    </section>
-
-    <section class="reports-grid">
-
-      <div class="report-card">
-        <div class="section-heading">
-          <h2>Users by Role</h2>
-          <p>Distribution of registered accounts</p>
-        </div>
-
-        <div class="empty-state" *ngIf="usersByRole.length === 0">
-          No user data available.
-        </div>
-
-        <div class="bar-list" *ngIf="usersByRole.length > 0">
-          <div class="bar-item" *ngFor="let item of usersByRole">
-            <div class="bar-info">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.total }}</strong>
-            </div>
-            <div class="bar-track">
-              <div
-                class="bar-fill users-fill"
-                [style.width.%]="getBarWidth(item.total, usersByRole)">
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="report-card">
-        <div class="section-heading">
-          <h2>Boarding Houses by Status</h2>
-          <p>Listing approval and review status</p>
-        </div>
-
-        <div class="empty-state" *ngIf="housesByStatus.length === 0">
-          No boarding house data available.
-        </div>
-
-        <div class="bar-list" *ngIf="housesByStatus.length > 0">
-          <div class="bar-item" *ngFor="let item of housesByStatus">
-            <div class="bar-info">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.total }}</strong>
-            </div>
-            <div class="bar-track">
-              <div
-                class="bar-fill houses-fill"
-                [style.width.%]="getBarWidth(item.total, housesByStatus)">
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="report-card">
-        <div class="section-heading">
-          <h2>Rooms by Availability</h2>
-          <p>Current room availability status</p>
-        </div>
-
-        <div class="empty-state" *ngIf="roomsByStatus.length === 0">
-          No room data available.
-        </div>
-
-        <div class="bar-list" *ngIf="roomsByStatus.length > 0">
-          <div class="bar-item" *ngFor="let item of roomsByStatus">
-            <div class="bar-info">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.total }}</strong>
-            </div>
-            <div class="bar-track">
-              <div
-                class="bar-fill rooms-fill"
-                [style.width.%]="getBarWidth(item.total, roomsByStatus)">
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </section>
-
-    <section class="report-card trends-card">
-      <div class="section-heading">
-        <h2>Monthly Activity</h2>
-        <p>User registrations and boarding house listings over the last six months</p>
-      </div>
-
-      <div class="trend-legend">
-        <span><i class="legend-users"></i> User Registrations</span>
-        <span><i class="legend-houses"></i> Boarding Houses</span>
-      </div>
-
-      <div class="empty-state" *ngIf="monthlyTrends.length === 0">
-        No monthly activity data available.
-      </div>
-
-      <div class="trend-list" *ngIf="monthlyTrends.length > 0">
-        <div class="trend-row" *ngFor="let item of monthlyTrends">
-          <div class="trend-month">{{ item.label }}</div>
-
-          <div class="trend-bars">
-            <div class="trend-bar-line">
-              <div class="trend-track">
-                <div
-                  class="trend-fill users-fill"
-                  [style.width.%]="getTrendWidth(item.users, 'users')">
-                </div>
-              </div>
-              <strong>{{ item.users }}</strong>
-            </div>
-
-            <div class="trend-bar-line">
-              <div class="trend-track">
-                <div
-                  class="trend-fill houses-fill"
-                  [style.width.%]="getTrendWidth(item.boarding_houses, 'boarding_houses')">
-                </div>
-              </div>
-              <strong>{{ item.boarding_houses }}</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <div class="report-footer">
-      <span>TagStay Administration</span>
-      <span>Generated: {{ today | date:'longDate' }}</span>
+  <section class="summary-grid">
+    <div class="summary-card">
+      <span class="card-label">Total Reports</span>
+      <strong>{{ totalReports }}</strong>
+      <span class="card-description">All submitted reports</span>
     </div>
 
-  </ng-container>
+    <div class="summary-card">
+      <span class="card-label">Submitted</span>
+      <strong>{{ submittedReports }}</strong>
+      <span class="card-description">Awaiting review</span>
+    </div>
+
+    <div class="summary-card">
+      <span class="card-label">Under Review</span>
+      <strong>{{ underReviewReports }}</strong>
+      <span class="card-description">Currently investigated</span>
+    </div>
+
+    <div class="summary-card">
+      <span class="card-label">Resolved</span>
+      <strong>{{ resolvedReports }}</strong>
+      <span class="card-description">Reports with decisions</span>
+    </div>
+  </section>
+
+  <section class="report-card">
+    <div class="section-heading">
+      <h2>Submitted Reports</h2>
+      <p>Review reported users, tenants, owners, and boarding-house listings.</p>
+    </div>
+
+    <div class="filter-bar">
+      <input
+        type="text"
+        placeholder="Search reports..."
+        [(ngModel)]="searchTerm"
+      />
+
+      <select [(ngModel)]="selectedStatus">
+        <option value="">All Statuses</option>
+        <option value="submitted">Submitted</option>
+        <option value="under_review">Under Review</option>
+        <option value="awaiting_response">Awaiting Response</option>
+        <option value="resolved">Resolved</option>
+        <option value="dismissed">Dismissed</option>
+      </select>
+    </div>
+
+    <div class="loading-state" *ngIf="loading">
+      Loading reports...
+    </div>
+
+    <div class="error-state" *ngIf="errorMessage && !selectedReport">
+      <p>{{ errorMessage }}</p>
+      <button (click)="loadReports()">Try Again</button>
+    </div>
+
+    <div class="empty-state" *ngIf="!loading && !errorMessage && reports.length === 0">
+      No reports have been submitted yet.
+    </div>
+
+    <div class="empty-state"
+         *ngIf="!loading && reports.length > 0 && filteredReports.length === 0">
+      No reports match your search or selected status.
+    </div>
+
+    <div class="table-container" *ngIf="!loading && filteredReports.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Report</th>
+            <th>Submitted By</th>
+            <th>Category</th>
+            <th>Date Submitted</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let report of filteredReports">
+            <td>
+              <strong>{{ report.title }}</strong>
+              <small>{{ report.description }}</small>
+            </td>
+            <td>
+              {{ report.reporter_name }}
+              <small>{{ report.reporter_role | titlecase }}</small>
+            </td>
+            <td>{{ report.category }}</td>
+            <td>{{ report.created_at | date:'mediumDate' }}</td>
+            <td>
+              <span class="status" [ngClass]="report.status">
+                {{ report.status | titlecase }}
+              </span>
+            </td>
+            <td>
+              <button
+                class="btn btn-outline btn-small"
+                type="button"
+                (click)="viewReport(report)">
+                Review
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- REPORT DETAILS MODAL -->
+  <div class="modal-overlay" *ngIf="selectedReport || detailsLoading"
+       (click)="closeDetails()">
+
+    <div class="report-modal" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <div>
+          <h2>Review Report</h2>
+          <p>Report #{{ selectedReport?.id }}</p>
+        </div>
+
+        <button type="button" class="close-button"
+                (click)="closeDetails()">
+          &times;
+        </button>
+      </div>
+
+      <div class="loading-state" *ngIf="detailsLoading">
+        Loading report details...
+      </div>
+
+      <ng-container *ngIf="selectedReport && !detailsLoading">
+
+        <div class="modal-section">
+          <h3>Report Information</h3>
+
+          <div class="detail-row">
+            <span>Title</span>
+            <strong>{{ selectedReport.title }}</strong>
+          </div>
+
+          <div class="detail-row">
+            <span>Category</span>
+            <strong>{{ selectedReport.category }}</strong>
+          </div>
+
+          <div class="detail-row">
+            <span>Submitted By</span>
+            <strong>
+              {{ selectedReport.reporter_name }}
+              ({{ selectedReport.reporter_role | titlecase }})
+            </strong>
+          </div>
+
+          <div class="detail-row">
+            <span>Reported Record</span>
+            <strong>
+              {{ selectedReport.target_name || 'Unknown' }}
+              ({{ selectedReport.target_type | titlecase }})
+            </strong>
+          </div>
+
+          <div class="detail-row">
+            <span>Date Submitted</span>
+            <strong>{{ selectedReport.created_at | date:'medium' }}</strong>
+          </div>
+
+          <div class="description-box">
+            <span>Description</span>
+            <p>{{ selectedReport.description }}</p>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <h3>Supporting Evidence</h3>
+
+          <div *ngIf="selectedReport.evidence?.length; else noEvidence">
+            <div class="evidence-item"
+                 *ngFor="let file of selectedReport.evidence">
+              <div>
+                <strong>{{ file.original_name }}</strong>
+                <small>{{ file.file_type || 'Unknown file type' }}</small>
+              </div>
+            </div>
+          </div>
+
+          <ng-template #noEvidence>
+            <p class="muted-text">No supporting evidence attached.</p>
+          </ng-template>
+        </div>
+
+        <div class="modal-section">
+          <h3>Admin Review</h3>
+
+          <label for="reviewStatus">Report Status</label>
+          <select id="reviewStatus" [(ngModel)]="reviewStatus">
+            <option value="submitted">Submitted</option>
+            <option value="under_review">Under Review</option>
+            <option value="awaiting_response">Awaiting Response</option>
+            <option value="resolved">Resolved</option>
+            <option value="dismissed">Dismissed</option>
+          </select>
+
+          <label for="adminNotes">Admin Notes / Decision</label>
+          <textarea
+            id="adminNotes"
+            rows="5"
+            [(ngModel)]="adminNotes"
+            placeholder="Record investigation findings or decision...">
+          </textarea>
+
+          <p class="muted-text">
+            Review the evidence and give the reported person an opportunity
+            to respond before making a punitive decision.
+          </p>
+        </div>
+
+        <div class="error-state" *ngIf="errorMessage">
+          {{ errorMessage }}
+        </div>
+
+        <div class="success-state" *ngIf="successMessage">
+          {{ successMessage }}
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="refresh-button"
+                  (click)="closeDetails()">
+            Close
+          </button>
+
+          <button type="button"
+                  class="save-button"
+                  (click)="updateReport()"
+                  [disabled]="saving">
+            {{ saving ? 'Saving...' : 'Save Review' }}
+          </button>
+        </div>
+
+      </ng-container>
+    </div>
+  </div>
 
 </div>

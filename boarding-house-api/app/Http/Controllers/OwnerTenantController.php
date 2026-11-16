@@ -91,11 +91,11 @@ class OwnerTenantController extends Controller
                 'integer',
                 Rule::exists('users', 'id')->where('role', 'student'),
             ],
-            'full_name' => ['required', 'string', 'max:255'],
-            'contact_number' => ['required', 'string', 'max:30'],
-            'emergency_contact_name' => ['nullable', 'string', 'max:255'],
-            'emergency_contact_number' => ['nullable', 'string', 'max:30'],
-        ]);
+                'full_name' => ['required', 'string', 'max:255'],
+                'contact_number' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+                'emergency_contact_name' => ['nullable', 'string', 'max:255'],
+                'emergency_contact_number' => ['nullable', 'string', 'regex:/^09[0-9]{9}$/'],
+                        ]);
 
         $tenant = Tenant::create([
             ...$validated,
