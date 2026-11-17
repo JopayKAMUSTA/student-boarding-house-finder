@@ -361,6 +361,15 @@ export class OwnerMessages implements OnInit, OnDestroy {
     return message?.body || 'Attachment';
   }
 
+  conversationDisplayName(conversation: ConversationInfo): string {
+  return conversation.tenant?.full_name || 'Unknown Tenant';
+}
+
+conversationDisplayInitial(conversation: ConversationInfo): string {
+  const name = this.conversationDisplayName(conversation).trim();
+  return name.charAt(0).toUpperCase() || '?';
+}
+
   trackConversation(_: number, conversation: ConversationInfo): number {
     return conversation.id;
   }

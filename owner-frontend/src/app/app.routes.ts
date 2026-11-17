@@ -16,7 +16,6 @@ import { TenantManagement } from './pages/tenants/tenant-management';
 import { RentalBills } from './pages/rental-bills/rental-bills';
 import { PaymentMethods } from './pages/payment-methods/payment-methods';
 import { OwnerMessages } from './pages/messages/owner-messages';
-import { ReportedInformation } from './pages/reported-information/reported-information';  
 
 
 export const routes: Routes = [
@@ -38,7 +37,6 @@ export const routes: Routes = [
         path: 'owner/boarding-houses/:boardingHouseId/rooms/:roomId',
         component: RoomDetails
       },
-      { path: 'owner/reported-information', component: ReportedInformation },
       {
         path: 'owner/boarding-houses/:boardingHouseId/rooms/:roomId/edit',
         component: RoomForm
