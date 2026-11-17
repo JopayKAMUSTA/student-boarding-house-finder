@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import 'boarding_house_details_screen.dart';
@@ -6,6 +5,9 @@ import 'compare_screen.dart';
 import 'saved_screen.dart';
 import 'explore_screen.dart';
 import 'profile_screen.dart';
+import 'student_conversations_screen.dart';
+import 'rental_payments_screen.dart';
+import 'notifications_screen.dart';
 import '../services/api_service.dart';
 
 const Color primaryBlue = Color(0xFF2563EB);
@@ -25,6 +27,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isLoading = true;
   String? errorMessage;
 
+  int unreadNotificationCount = 0;
+
   List<Map<String, dynamic>> boardingHouses = [];
 
   final Set<String> favorites = {};
@@ -33,87 +37,169 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadBoardingHouses();
+    _loadUnreadNotifications();
   }
 
   // LOAD BOARDING HOUSES FROM LARAVEL API
   Future<void> _loadBoardingHouses() async {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
+    if (isLoading && boardingHouses.isNotEmpty) return;
 
-    final result = await ApiService.getBoardingHouses();
-
-    if (!mounted) return;
-
-    if (result['success'] == true) {
+    if (mounted) {
       setState(() {
-        boardingHouses = List<Map<String, dynamic>>.from(
-          result['data'] ?? [],
-        );
+        isLoading = true;
+        errorMessage = null;
+      });
+    }
+
+    try {
+      final result = await ApiService.getBoardingHouses();
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        final rawData = result['data'];
+
+        final houses = rawData is List
+            ? rawData
+                  .whereType<Map>()
+                  .map((house) => Map<String, dynamic>.from(house))
+                  .toList()
+            : <Map<String, dynamic>>[];
+
+        setState(() {
+          boardingHouses = houses;
+          isLoading = false;
+          errorMessage = null;
+        });
+      } else {
+        setState(() {
+          errorMessage = result['message'] ?? 'Failed to load boarding houses.';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        errorMessage = 'Unable to connect to the server. Please try again.';
         isLoading = false;
       });
-    } else {
-      setState(() {
-        errorMessage =
-            result['message'] ?? 'Failed to load boarding houses.';
-        isLoading = false;
-      });
+
+      debugPrint('Boarding house loading error: $e');
     }
   }
 
-  // OPEN PROFILE
-  void _openProfileScreen() {
-    Navigator.push(
+  // LOAD UNREAD NOTIFICATION COUNT
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final result = await ApiService.getStudentNotifications();
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        setState(() {
+          unreadNotificationCount =
+              int.tryParse(result['unread_count']?.toString() ?? '0') ?? 0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Notification count error: $e');
+    }
+  }
+
+  // OPEN NOTIFICATIONS
+  Future<void> _openNotificationsScreen() async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const ProfileScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+
+    if (!mounted) return;
+
+    await _loadUnreadNotifications();
+  }
+
+  // SAFELY CONVERT AMENITIES
+  List<String> _getAmenities(dynamic value) {
+    if (value is List) {
+      return value.map((item) => item.toString()).toList();
+    }
+
+    return [];
+  }
+
+  // OPEN PROFILE
+  Future<void> _openProfileScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ProfileScreen()),
+    );
+
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  // OPEN MESSAGES
+  Future<void> _openMessagesScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const StudentConversationsScreen()),
+    );
+  }
+
+  // OPEN RENTAL PAYMENTS
+  Future<void> _openRentalPaymentsScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const RentalPaymentsScreen()),
     );
   }
 
   // OPEN EXPLORE
-  void _openExploreScreen() {
-    Navigator.push(
+  Future<void> _openExploreScreen() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ExploreScreen(
-          boardingHouses: boardingHouses,
-        ),
+        builder: (_) => ExploreScreen(boardingHouses: boardingHouses),
       ),
     );
+
+    if (!mounted) return;
+    await _loadBoardingHouses();
   }
 
   // OPEN SAVED
-  void _openSavedScreen() {
-    Navigator.push(
+  Future<void> _openSavedScreen() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => SavedScreen(
           boardingHouses: boardingHouses,
           favorites: favorites,
           onFavoritesChanged: () {
-            setState(() {});
+            if (mounted) {
+              setState(() {});
+            }
           },
         ),
       ),
-    ).then((_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
+    );
+
+    if (!mounted) return;
+    setState(() {});
   }
 
   // OPEN COMPARE
-  void _openCompareScreen() {
-    Navigator.push(
+  Future<void> _openCompareScreen() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CompareScreen(
-          boardingHouses: boardingHouses,
-        ),
+        builder: (context) => CompareScreen(boardingHouses: boardingHouses),
       ),
     );
+
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -121,38 +207,25 @@ class _HomeScreenState extends State<HomeScreen> {
     final query = searchQuery.trim().toLowerCase();
 
     final visibleHouses = boardingHouses.where((house) {
-      final matchesCity = selectedCity == 'All locations' ||
-          (house['city'] ?? '').toString().toLowerCase() ==
-              selectedCity.toLowerCase();
+      final city = (house['city'] ?? '').toString();
 
-      final amenities = List<String>.from(
-        house['amenities'] ?? [],
-      );
+      final matchesCity =
+          selectedCity == 'All locations' ||
+          city.toLowerCase() == selectedCity.toLowerCase();
 
-      final matchesSearch = query.isEmpty ||
-          (house['name'] ?? '')
-              .toString()
-              .toLowerCase()
-              .contains(query) ||
-          (house['city'] ?? '')
-              .toString()
-              .toLowerCase()
-              .contains(query) ||
-          (house['location'] ?? '')
-              .toString()
-              .toLowerCase()
-              .contains(query) ||
-          (house['address'] ?? '')
-              .toString()
-              .toLowerCase()
-              .contains(query) ||
-          (house['description'] ?? '')
-              .toString()
-              .toLowerCase()
-              .contains(query) ||
-          amenities.any(
-            (amenity) => amenity.toLowerCase().contains(query),
-          );
+      final amenities = _getAmenities(house['amenities']);
+
+      final searchableText = [
+        house['name'],
+        house['city'],
+        house['location'],
+        house['address'],
+        house['description'],
+        ...amenities,
+      ].map((value) => (value ?? '').toString().toLowerCase());
+
+      final matchesSearch =
+          query.isEmpty || searchableText.any((value) => value.contains(query));
 
       return matchesCity && matchesSearch;
     }).toList();
@@ -160,38 +233,44 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: pageBackground,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildHeader(),
-                  const SizedBox(height: 28),
-                  _buildGreeting(),
-                  const SizedBox(height: 22),
-                  _buildSearchBar(),
-                  const SizedBox(height: 18),
-                  _buildCityFilters(),
-                  const SizedBox(height: 28),
-                  _buildRecommendationHeader(),
-                  const SizedBox(height: 16),
-                ]),
+        child: RefreshIndicator(
+          color: primaryBlue,
+          onRefresh: () async {
+            await _loadBoardingHouses();
+            await _loadUnreadNotifications();
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildHeader(),
+                    const SizedBox(height: 28),
+                    _buildGreeting(),
+                    const SizedBox(height: 22),
+                    _buildSearchBar(),
+                    const SizedBox(height: 18),
+                    _buildCityFilters(),
+                    const SizedBox(height: 28),
+                    _buildRecommendationHeader(),
+                    const SizedBox(height: 16),
+                  ]),
+                ),
               ),
-            ),
 
-            // BOARDING HOUSE RESULTS
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverToBoxAdapter(
-                child: _buildBoardingHouseResults(visibleHouses),
+              // BOARDING HOUSE RESULTS
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: _buildBoardingHouseResults(visibleHouses),
+                ),
               ),
-            ),
 
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 20),
-            ),
-          ],
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNavigation(),
@@ -199,17 +278,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // LOADING, ERROR, EMPTY AND SUCCESS STATES
-  Widget _buildBoardingHouseResults(
-    List<Map<String, dynamic>> visibleHouses,
-  ) {
+  Widget _buildBoardingHouseResults(List<Map<String, dynamic>> visibleHouses) {
     if (isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 50),
-        child: Center(
-          child: CircularProgressIndicator(
-            color: primaryBlue,
-          ),
-        ),
+        child: Center(child: CircularProgressIndicator(color: primaryBlue)),
       );
     }
 
@@ -218,18 +291,12 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: [
-            const Icon(
-              Icons.wifi_off_rounded,
-              size: 48,
-              color: Colors.grey,
-            ),
+            const Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey),
             const SizedBox(height: 12),
             Text(
               errorMessage!,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.black87,
-              ),
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 14),
             ElevatedButton.icon(
@@ -251,25 +318,16 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: [
-            Icon(
-              Icons.search_off_rounded,
-              size: 48,
-              color: Colors.grey,
-            ),
+            Icon(Icons.search_off_rounded, size: 48, color: Colors.grey),
             SizedBox(height: 12),
             Text(
               'No boarding houses found',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 6),
             Text(
               'Try another name or location.',
-              style: TextStyle(
-                color: Colors.grey,
-              ),
+              style: TextStyle(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
           ],
@@ -287,9 +345,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => BoardingHouseDetailsScreen(
-                    house: house,
-                  ),
+                  builder: (context) =>
+                      BoardingHouseDetailsScreen(house: house),
                 ),
               );
             },
@@ -300,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // HEADER
+  // HEADER WITH NOTIFICATION AND PROFILE
   Widget _buildHeader() {
     return Row(
       children: [
@@ -311,11 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
             color: primaryBlue,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const Icon(
-            Icons.house_rounded,
-            color: Colors.white,
-            size: 27,
-          ),
+          child: const Icon(Icons.house_rounded, color: Colors.white, size: 27),
         ),
         const SizedBox(width: 10),
         const Column(
@@ -331,24 +384,76 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Text(
               'Find your student home',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ],
         ),
         const Spacer(),
+
+        // NOTIFICATION BELL
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: const Color(0xFFE4ECFF),
+              child: IconButton(
+                tooltip: 'Notifications',
+                onPressed: _openNotificationsScreen,
+                icon: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: primaryBlue,
+                  size: 23,
+                ),
+              ),
+            ),
+
+            // UNREAD NOTIFICATION BADGE
+            if (unreadNotificationCount > 0)
+              Positioned(
+                right: -5,
+                top: -5,
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 19,
+                    minHeight: 19,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      unreadNotificationCount > 99
+                          ? '99+'
+                          : unreadNotificationCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+
+        const SizedBox(width: 10),
+
+        // PROFILE BUTTON
         CircleAvatar(
           radius: 22,
           backgroundColor: const Color(0xFFE4ECFF),
           child: IconButton(
             tooltip: 'Profile',
             onPressed: _openProfileScreen,
-            icon: const Icon(
-              Icons.person_outline_rounded,
-              color: primaryBlue,
-            ),
+            icon: const Icon(Icons.person_outline_rounded, color: primaryBlue),
           ),
         ),
       ],
@@ -381,10 +486,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SizedBox(height: 8),
         Text(
           'Discover boarding houses that fit your budget.',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.black54,
-          ),
+          style: TextStyle(fontSize: 14, color: Colors.black54),
         ),
       ],
     );
@@ -401,10 +503,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: InputDecoration(
         hintText: 'City, school, or boarding house',
         hintStyle: const TextStyle(fontSize: 13),
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-          color: primaryBlue,
-        ),
+        prefixIcon: const Icon(Icons.search_rounded, color: primaryBlue),
         suffixIcon: searchQuery.isNotEmpty
             ? IconButton(
                 tooltip: 'Clear search',
@@ -425,15 +524,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Color(0xFFEEF0F5),
-          ),
+          borderSide: const BorderSide(color: Color(0xFFEEF0F5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: primaryBlue,
-          ),
+          borderSide: const BorderSide(color: primaryBlue),
         ),
       ),
     );
@@ -441,11 +536,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // CITY FILTERS
   Widget _buildCityFilters() {
-    final cities = [
-      'All locations',
-      'Tagum City',
-      'Davao City',
-    ];
+    final cities = ['All locations', 'Tagum City', 'Davao City'];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -469,9 +560,7 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
                 side: BorderSide(
-                  color: selected
-                      ? primaryBlue
-                      : const Color(0xFFE6E8EF),
+                  color: selected ? primaryBlue : const Color(0xFFE6E8EF),
                 ),
               ),
               onSelected: (_) {
@@ -504,45 +593,56 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: _openExploreScreen,
           child: const Text(
             'See all',
-            style: TextStyle(
-              color: primaryBlue,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(color: primaryBlue, fontWeight: FontWeight.w600),
           ),
         ),
       ],
     );
   }
 
+  // IMAGE PLACEHOLDER
+  Widget _buildImagePlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: 180,
+      color: const Color(0xFFE5ECFA),
+      child: const Center(
+        child: Icon(Icons.home_rounded, size: 65, color: Color(0xFF8BA7DF)),
+      ),
+    );
+  }
+
   // BOARDING HOUSE CARD
   Widget _buildHouseCard(Map<String, dynamic> house) {
-    final String name = (house['name'] ?? 'Unnamed Boarding House')
-        .toString();
+    final String name = (house['name'] ?? 'Unnamed Boarding House').toString();
 
-    // Use the database ID when available so duplicate names
-    // do not share the same favorite state.
-    final String favoriteKey =
-        (house['id'] ?? name).toString();
+    final String favoriteKey = (house['id'] ?? name).toString();
 
     final bool isFavorite = favorites.contains(favoriteKey);
 
-    final List<String> amenities = List<String>.from(
-      house['amenities'] ?? [],
-    );
+    final List<String> amenities = _getAmenities(house['amenities']);
 
-    final dynamic price = house['price'] ?? 0;
+    final dynamic price = house['price'] ?? house['monthly_rent'] ?? 0;
 
     final String formattedPrice = price is num
         ? price.toStringAsFixed(0)
         : price.toString();
 
+    String? imageUrl = house['cover_image_url']?.toString();
+
+    if (imageUrl == null || imageUrl.isEmpty) {
+      imageUrl = house['image_url']?.toString();
+    }
+
+    if (imageUrl != null && imageUrl.isEmpty) {
+      imageUrl = null;
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFEEF0F5),
-        ),
+        border: Border.all(color: const Color(0xFFEEF0F5)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.025),
@@ -554,77 +654,103 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            height: 145,
+          SizedBox(
+            height: 180,
             width: double.infinity,
-            decoration: const BoxDecoration(
-              color: Color(0xFFE5ECFA),
-              borderRadius: BorderRadius.vertical(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(20),
               ),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Icon(
-                    house['icon'] is IconData
-                        ? house['icon'] as IconData
-                        : Icons.home_rounded,
-                    size: 65,
-                    color: const Color(0xFF8BA7DF),
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: CircleAvatar(
-                    backgroundColor: Colors.white,
-                    child: IconButton(
-                      tooltip: 'Save favorite',
-                      padding: EdgeInsets.zero,
-                      onPressed: () {
-                        setState(() {
-                          if (isFavorite) {
-                            favorites.remove(favoriteKey);
-                          } else {
-                            favorites.add(favoriteKey);
-                          }
-                        });
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (imageUrl != null)
+                    Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: 180,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) {
+                          return child;
+                        }
+
+                        return Container(
+                          color: const Color(0xFFE5ECFA),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: primaryBlue,
+                            ),
+                          ),
+                        );
                       },
-                      icon: Icon(
-                        isFavorite
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        color: isFavorite ? Colors.red : Colors.black87,
-                        size: 21,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint('IMAGE LOAD ERROR: $imageUrl');
+                        debugPrint('$error');
+
+                        return _buildImagePlaceholder();
+                      },
+                    )
+                  else
+                    _buildImagePlaceholder(),
+
+                  // FAVORITE BUTTON
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.white,
+                      child: IconButton(
+                        tooltip: 'Save favorite',
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          setState(() {
+                            if (isFavorite) {
+                              favorites.remove(favoriteKey);
+                            } else {
+                              favorites.add(favoriteKey);
+                            }
+                          });
+                        },
+                        icon: Icon(
+                          isFavorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: isFavorite ? Colors.red : Colors.black87,
+                          size: 21,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  bottom: 10,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Text(
-                      '${house['rooms'] ?? 0} rooms available',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+
+                  // AVAILABLE ROOMS
+                  Positioned(
+                    bottom: 10,
+                    left: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Text(
+                        '${house['rooms'] ?? house['available_rooms'] ?? 0} rooms available',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+
+          // BOARDING HOUSE INFORMATION
           Padding(
             padding: const EdgeInsets.all(15),
             child: Column(
@@ -649,7 +775,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        '${house['city'] ?? ''} · ${house['location'] ?? ''}',
+                        '${house['city'] ?? ''} · ${house['location'] ?? house['address'] ?? ''}',
                         style: const TextStyle(
                           color: Colors.black54,
                           fontSize: 12,
@@ -683,10 +809,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   }).toList(),
                 ),
                 const SizedBox(height: 14),
-                const Divider(
-                  height: 1,
-                  color: Color(0xFFEEF0F5),
-                ),
+                const Divider(height: 1, color: Color(0xFFEEF0F5)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -700,16 +823,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const Text(
                       ' / month',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                     const Spacer(),
-                    const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: primaryBlue,
-                    ),
+                    const Icon(Icons.arrow_forward_rounded, color: primaryBlue),
                   ],
                 ),
               ],
@@ -727,38 +844,25 @@ class _HomeScreenState extends State<HomeScreen> {
       currentIndex: 0,
       selectedItemColor: primaryBlue,
       unselectedItemColor: Colors.grey,
-      selectedFontSize: 11,
-      unselectedFontSize: 11,
+      selectedFontSize: 10,
+      unselectedFontSize: 10,
       onTap: (index) {
         if (index == 0) {
           return;
-        }
-
-        if (index == 1) {
+        } else if (index == 1) {
           _openExploreScreen();
-          return;
-        }
-
-        if (index == 2) {
+        } else if (index == 2) {
           _openCompareScreen();
-          return;
-        }
-
-        if (index == 3) {
+        } else if (index == 3) {
           _openSavedScreen();
-          return;
-        }
-
-        if (index == 4) {
-          _openProfileScreen();
-          return;
+        } else if (index == 4) {
+          _openMessagesScreen();
+        } else if (index == 5) {
+          _openRentalPaymentsScreen();
         }
       },
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_rounded),
-          label: 'Home',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
         BottomNavigationBarItem(
           icon: Icon(Icons.search_rounded),
           label: 'Explore',
@@ -772,8 +876,12 @@ class _HomeScreenState extends State<HomeScreen> {
           label: 'Saved',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline_rounded),
-          label: 'Profile',
+          icon: Icon(Icons.chat_bubble_outline_rounded),
+          label: 'Messages',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.receipt_long_rounded),
+          label: 'Payments',
         ),
       ],
     );
