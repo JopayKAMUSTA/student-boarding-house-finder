@@ -2,213 +2,524 @@
   <header class="page-header">
     <div>
       <h1>Messages</h1>
-      <p>Private conversations with tenants linked to your boarding houses.</p>
+      <p>Private conversations with students and tenants interested in your boarding houses.</p>
     </div>
-    <button type="button" class="btn btn-primary" (click)="openNewConversation()"
-      [disabled]="isLoadingRecipients || recipients.length === 0">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+
+    <button
+      type="button"
+      class="btn btn-primary"
+      (click)="openNewConversation()"
+      [disabled]="isLoadingRecipients || recipients.length === 0"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
       New message
     </button>
   </header>
 
   <p *ngIf="errorMessage" class="notice notice-error" role="alert">
     {{ errorMessage }}
-    <button type="button" class="btn btn-outline btn-small"
-      (click)="loadConversations()" [disabled]="isLoadingConversations">Retry</button>
+    <button
+      type="button"
+      class="btn btn-outline btn-small"
+      (click)="loadConversations()"
+      [disabled]="isLoadingConversations"
+    >
+      Retry
+    </button>
   </p>
-  <p *ngIf="sendError && !selectedConversation" class="notice notice-error" role="alert">
+
+  <p
+    *ngIf="sendError && !selectedConversation"
+    class="notice notice-error"
+    role="alert"
+  >
     {{ sendError }}
   </p>
 
-  <section class="messenger" aria-label="Owner tenant messages">
+  <section class="messenger" aria-label="Owner messages">
     <aside class="conversation-panel">
+
       <div class="conversation-heading">
         <div>
           <h2>Conversations</h2>
           <span>{{ totalConversations }} total</span>
         </div>
-        <button type="button" class="icon-button" aria-label="Refresh conversations"
-          (click)="loadConversations()" [disabled]="isLoadingConversations">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/></svg>
+
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Refresh conversations"
+          (click)="loadConversations()"
+          [disabled]="isLoadingConversations"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 7v5h-5M4 17v-5h5M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/>
+          </svg>
         </button>
       </div>
 
-      <p *ngIf="isLoadingConversations" class="panel-state" role="status">Loading conversations...</p>
-      <p *ngIf="!isLoadingConversations && !errorMessage && conversations.length === 0"
-        class="panel-state">No conversations yet. Start a message with a linked tenant.</p>
+      <p
+        *ngIf="isLoadingConversations"
+        class="panel-state"
+        role="status"
+      >
+        Loading conversations...
+      </p>
 
-      <div class="conversation-list" *ngIf="conversations.length > 0">
-        <button *ngFor="let conversation of conversations; trackBy: trackConversation"
-          type="button" class="conversation-item"
+      <p
+        *ngIf="!isLoadingConversations && !errorMessage && conversations.length === 0"
+        class="panel-state"
+      >
+        No conversations yet. Students and tenants can contact you about your boarding houses.
+      </p>
+
+      <div
+        class="conversation-list"
+        *ngIf="conversations.length > 0"
+      >
+        <button
+          *ngFor="let conversation of conversations; trackBy: trackConversation"
+          type="button"
+          class="conversation-item"
           [class.selected]="selectedConversation?.id === conversation.id"
-          (click)="selectConversation(conversation)">
+          (click)="selectConversation(conversation)"
+        >
           <span class="avatar" aria-hidden="true">
-            {{ conversation.tenant.full_name.charAt(0).toUpperCase() }}
+            {{ conversationDisplayInitial(conversation) }}
           </span>
+
           <span class="conversation-copy">
-            <span class="conversation-name">{{ conversation.tenant.full_name }}</span>
-            <span class="house-name">{{ conversation.boarding_house.name }}</span>
-            <span class="last-message">{{ messagePreview(conversation.latest_message) }}</span>
+            <span class="conversation-name">
+              {{ conversationDisplayName(conversation) }}
+            </span>
+
+            <span class="house-name">
+              {{ conversation.boarding_house.name }}
+            </span>
+
+            <span class="last-message">
+              {{ messagePreview(conversation.latest_message) }}
+            </span>
           </span>
+
           <span class="conversation-meta">
             <time>{{ conversation.updated_at | date:'shortDate' }}</time>
-            <span *ngIf="conversation.unread_count > 0" class="unread-badge"
-              [attr.aria-label]="conversation.unread_count + ' unread messages'">
+
+            <span
+              *ngIf="conversation.unread_count > 0"
+              class="unread-badge"
+              [attr.aria-label]="conversation.unread_count + ' unread messages'"
+            >
               {{ conversation.unread_count }}
             </span>
           </span>
         </button>
       </div>
 
-      <nav *ngIf="lastPage > 1" class="pagination" aria-label="Conversation pages">
-        <button type="button" class="btn btn-outline btn-small" (click)="previousConversations()"
-          [disabled]="isLoadingConversations || currentPage <= 1">Previous</button>
+      <nav
+        *ngIf="lastPage > 1"
+        class="pagination"
+        aria-label="Conversation pages"
+      >
+        <button
+          type="button"
+          class="btn btn-outline btn-small"
+          (click)="previousConversations()"
+          [disabled]="isLoadingConversations || currentPage <= 1"
+        >
+          Previous
+        </button>
+
         <span>{{ currentPage }} / {{ lastPage }}</span>
-        <button type="button" class="btn btn-outline btn-small" (click)="nextConversations()"
-          [disabled]="isLoadingConversations || currentPage >= lastPage">Next</button>
+
+        <button
+          type="button"
+          class="btn btn-outline btn-small"
+          (click)="nextConversations()"
+          [disabled]="isLoadingConversations || currentPage >= lastPage"
+        >
+          Next
+        </button>
       </nav>
+
     </aside>
 
     <section class="thread-panel" aria-label="Selected conversation">
+
       <div *ngIf="!selectedConversation" class="thread-empty">
         <span class="empty-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 4zM8 9h8M8 13h5"/></svg>
+          <svg viewBox="0 0 24 24">
+            <path d="M4 5h16v12H9l-5 4zM8 9h8M8 13h5"/>
+          </svg>
         </span>
-        <h2>Your tenant messages</h2>
+
+        <h2>Your messages</h2>
         <p>Select a conversation or start a new message.</p>
       </div>
 
       <ng-container *ngIf="selectedConversation as conversation">
+
         <header class="thread-header">
           <span class="avatar" aria-hidden="true">
-            {{ conversation.tenant.full_name.charAt(0).toUpperCase() }}
+            {{ conversationDisplayInitial(conversation) }}
           </span>
+
           <div>
-            <h2>{{ conversation.tenant.full_name }}</h2>
+            <h2>{{ conversationDisplayName(conversation) }}</h2>
             <p>{{ conversation.boarding_house.name }}</p>
           </div>
+
           <span class="secure-label">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="5" y="10" width="14" height="11" rx="2"/>
+              <path d="M8 10V7a4 4 0 1 1 8 0v3"/>
+            </svg>
             Private conversation
           </span>
         </header>
 
         <div class="thread-history">
-          <div *ngIf="lastMessagesPage > 1" class="history-pagination">
-            <button type="button" class="btn btn-outline btn-small"
-              *ngIf="currentMessagesPage < lastMessagesPage"
-              (click)="loadOlderMessages()" [disabled]="isLoadingMessages">Load older messages</button>
-            <button type="button" class="btn btn-outline btn-small"
-              *ngIf="currentMessagesPage > 1"
-              (click)="loadNewerMessages()" [disabled]="isLoadingMessages">Newer messages</button>
-          </div>
-          <p *ngIf="isLoadingMessages" class="panel-state" role="status">Loading messages...</p>
-          <div *ngIf="messageError" class="notice notice-error" role="alert">
-            {{ messageError }}
-            <button type="button" class="btn btn-outline btn-small" (click)="loadMessages()"
-              [disabled]="isLoadingMessages">Retry</button>
-          </div>
-          <p *ngIf="!isLoadingMessages && !messageError && messages.length === 0"
-            class="panel-state">No messages in this conversation yet.</p>
 
-          <article *ngFor="let message of messages; trackBy: trackMessage"
-            class="message-row" [class.message-owner]="message.sender.role === 'owner'">
+          <div
+            *ngIf="lastMessagesPage > 1"
+            class="history-pagination"
+          >
+            <button
+              type="button"
+              class="btn btn-outline btn-small"
+              *ngIf="currentMessagesPage < lastMessagesPage"
+              (click)="loadOlderMessages()"
+              [disabled]="isLoadingMessages"
+            >
+              Load older messages
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-outline btn-small"
+              *ngIf="currentMessagesPage > 1"
+              (click)="loadNewerMessages()"
+              [disabled]="isLoadingMessages"
+            >
+              Newer messages
+            </button>
+          </div>
+
+          <p
+            *ngIf="isLoadingMessages"
+            class="panel-state"
+            role="status"
+          >
+            Loading messages...
+          </p>
+
+          <div
+            *ngIf="messageError"
+            class="notice notice-error"
+            role="alert"
+          >
+            {{ messageError }}
+
+            <button
+              type="button"
+              class="btn btn-outline btn-small"
+              (click)="loadMessages()"
+              [disabled]="isLoadingMessages"
+            >
+              Retry
+            </button>
+          </div>
+
+          <p
+            *ngIf="!isLoadingMessages && !messageError && messages.length === 0"
+            class="panel-state"
+          >
+            No messages in this conversation yet.
+          </p>
+
+          <article
+            *ngFor="let message of messages; trackBy: trackMessage"
+            class="message-row"
+            [class.message-owner]="message.sender.role === 'owner'"
+          >
             <div class="message-bubble">
-              <span class="sender-name">{{ message.sender.role === 'owner' ? 'You' : message.sender.name }}</span>
-              <p *ngIf="message.body" class="message-body">{{ message.body }}</p>
-              <div *ngIf="message.attachments.length" class="message-attachments">
-                <ng-container *ngFor="let attachment of message.attachments; trackBy: trackAttachment">
-                  <img *ngIf="isImage(attachment) && attachmentImageUrls[attachment.id]"
+
+              <span class="sender-name">
+                {{ message.sender.role === 'owner' ? 'You' : message.sender.name }}
+              </span>
+
+              <p *ngIf="message.body" class="message-body">
+                {{ message.body }}
+              </p>
+
+              <div
+                *ngIf="message.attachments.length"
+                class="message-attachments"
+              >
+                <ng-container
+                  *ngFor="let attachment of message.attachments; trackBy: trackAttachment"
+                >
+
+                  <img
+                    *ngIf="isImage(attachment) && attachmentImageUrls[attachment.id]"
                     [src]="attachmentImageUrls[attachment.id]"
-                    [alt]="attachment.original_filename" class="message-image" />
-                  <span *ngIf="isImage(attachment) && attachmentLoadErrors[attachment.id]"
-                    class="attachment-error">{{ attachmentLoadErrors[attachment.id] }}</span>
-                  <span *ngIf="isImage(attachment) && !attachmentImageUrls[attachment.id] &&
-                      !attachmentLoadErrors[attachment.id]" class="attachment-loading">Loading photo...</span>
-                  <div *ngIf="attachment.mime_type === 'application/pdf'" class="pdf-attachment">
+                    [alt]="attachment.original_filename"
+                    class="message-image"
+                  />
+
+                  <span
+                    *ngIf="isImage(attachment) && attachmentLoadErrors[attachment.id]"
+                    class="attachment-error"
+                  >
+                    {{ attachmentLoadErrors[attachment.id] }}
+                  </span>
+
+                  <span
+                    *ngIf="isImage(attachment) && !attachmentImageUrls[attachment.id] && !attachmentLoadErrors[attachment.id]"
+                    class="attachment-loading"
+                  >
+                    Loading photo...
+                  </span>
+
+                  <div
+                    *ngIf="attachment.mime_type === 'application/pdf'"
+                    class="pdf-attachment"
+                  >
                     <span class="pdf-icon">PDF</span>
-                    <span class="pdf-name">{{ attachment.original_filename }}</span>
-                    <button type="button" class="text-button" (click)="openPdf(attachment)"
-                      [disabled]="!attachmentImageUrls[attachment.id]">Open</button>
-                    <button type="button" class="text-button" (click)="downloadAttachment(attachment)"
-                      [disabled]="!attachmentImageUrls[attachment.id]">Download</button>
-                    <span *ngIf="attachmentLoadErrors[attachment.id]" class="attachment-error">
+
+                    <span class="pdf-name">
+                      {{ attachment.original_filename }}
+                    </span>
+
+                    <button
+                      type="button"
+                      class="text-button"
+                      (click)="openPdf(attachment)"
+                      [disabled]="!attachmentImageUrls[attachment.id]"
+                    >
+                      Open
+                    </button>
+
+                    <button
+                      type="button"
+                      class="text-button"
+                      (click)="downloadAttachment(attachment)"
+                      [disabled]="!attachmentImageUrls[attachment.id]"
+                    >
+                      Download
+                    </button>
+
+                    <span
+                      *ngIf="attachmentLoadErrors[attachment.id]"
+                      class="attachment-error"
+                    >
                       {{ attachmentLoadErrors[attachment.id] }}
                     </span>
                   </div>
+
                 </ng-container>
               </div>
-              <time class="message-time">{{ message.created_at | date:'medium' }}</time>
+
+              <time class="message-time">
+                {{ message.created_at | date:'medium' }}
+              </time>
+
             </div>
           </article>
+
         </div>
 
         <form class="composer" (ngSubmit)="sendMessage()">
-          <div class="selected-files" *ngIf="selectedFiles.length">
-            <div *ngFor="let file of selectedFiles; let i = index" class="selected-file">
-              <img *ngIf="file.type.startsWith('image/') && localImagePreview(i)"
-                [src]="localImagePreview(i)" [alt]="file.name" />
+
+          <div
+            class="selected-files"
+            *ngIf="selectedFiles.length"
+          >
+            <div
+              *ngFor="let file of selectedFiles; let i = index"
+              class="selected-file"
+            >
+              <img
+                *ngIf="file.type.startsWith('image/') && localImagePreview(i)"
+                [src]="localImagePreview(i)"
+                [alt]="file.name"
+              />
+
               <span>{{ file.name }}</span>
-              <button type="button" class="remove-file" (click)="removeSelectedFile(i)"
-                [attr.aria-label]="'Remove ' + file.name">×</button>
+
+              <button
+                type="button"
+                class="remove-file"
+                (click)="removeSelectedFile(i)"
+                [attr.aria-label]="'Remove ' + file.name"
+              >
+                ×
+              </button>
             </div>
           </div>
-          <p *ngIf="sendError" class="composer-error" role="alert">{{ sendError }}</p>
+
+          <p
+            *ngIf="sendError"
+            class="composer-error"
+            role="alert"
+          >
+            {{ sendError }}
+          </p>
+
           <div class="composer-controls">
-            <label class="attach-button" title="Attach JPG, PNG, WEBP, or PDF">
-              <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf"
-                (change)="selectAttachments($event)" />
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12.5 6.8-6.8a4 4 0 0 1 5.7 5.7l-8.8 8.8a6 6 0 0 1-8.5-8.5l8.4-8.4"/></svg>
+
+            <label
+              class="attach-button"
+              title="Attach JPG, PNG, WEBP, or PDF"
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                (change)="selectAttachments($event)"
+              />
+
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m8 12.5 6.8-6.8a4 4 0 0 1 5.7 5.7l-8.8 8.8a6 6 0 0 1-8.5-8.5l8.4-8.4"/>
+              </svg>
+
               <span>Attach</span>
             </label>
-            <textarea name="draftMessage" [(ngModel)]="draftMessage" maxlength="5000"
-              rows="2" placeholder="Write a message..." aria-label="Message text"
-              (keydown)="handleMessageKeydown($event)"></textarea>
-            <button type="submit" class="btn btn-primary send-button"
-              [disabled]="isSending || (!draftMessage.trim() && selectedFiles.length === 0)">
+
+            <textarea
+              name="draftMessage"
+              [(ngModel)]="draftMessage"
+              maxlength="5000"
+              rows="2"
+              placeholder="Write a message..."
+              aria-label="Message text"
+              (keydown)="handleMessageKeydown($event)"
+            ></textarea>
+
+            <button
+              type="submit"
+              class="btn btn-primary send-button"
+              [disabled]="isSending || (!draftMessage.trim() && selectedFiles.length === 0)"
+            >
               {{ isSending ? 'Sending...' : 'Send' }}
             </button>
+
           </div>
-          <p class="composer-note">Messages are not rental payment submissions. Max 5 attachments, 10 MB each.</p>
+
+          <p class="composer-note">
+            Messages are not rental payment submissions. Max 5 attachments, 10 MB each.
+          </p>
+
         </form>
+
       </ng-container>
     </section>
   </section>
 
-  <div *ngIf="isNewConversationOpen" class="dialog-backdrop"
-    (click)="closeNewConversation()" (keydown.escape)="closeNewConversation()">
-    <section class="new-conversation-dialog" role="dialog" aria-modal="true"
-      aria-labelledby="new-conversation-title" (click)="$event.stopPropagation()">
+  <div
+    *ngIf="isNewConversationOpen"
+    class="dialog-backdrop"
+    (click)="closeNewConversation()"
+    (keydown.escape)="closeNewConversation()"
+  >
+    <section
+      class="new-conversation-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-conversation-title"
+      (click)="$event.stopPropagation()"
+    >
+
       <div class="dialog-title">
         <div>
           <span class="dialog-kicker">START A CHAT</span>
           <h2 id="new-conversation-title">New message</h2>
         </div>
-        <button type="button" class="icon-button" aria-label="Close dialog"
-          (click)="closeNewConversation()">×</button>
+
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Close dialog"
+          (click)="closeNewConversation()"
+        >
+          ×
+        </button>
       </div>
+
       <p>Choose a linked tenant and the boarding house they are assigned to.</p>
-      <p *ngIf="sendError" class="notice notice-error" role="alert">{{ sendError }}</p>
-      <p *ngIf="recipientError" class="notice notice-error" role="alert">{{ recipientError }}</p>
-      <label for="message-recipient">Tenant and boarding house</label>
-      <select id="message-recipient" name="recipient" [(ngModel)]="selectedRecipient">
+
+      <p
+        *ngIf="sendError"
+        class="notice notice-error"
+        role="alert"
+      >
+        {{ sendError }}
+      </p>
+
+      <p
+        *ngIf="recipientError"
+        class="notice notice-error"
+        role="alert"
+      >
+        {{ recipientError }}
+      </p>
+
+      <label for="message-recipient">
+        Tenant and boarding house
+      </label>
+
+      <select
+        id="message-recipient"
+        name="recipient"
+        [(ngModel)]="selectedRecipient"
+      >
         <option value="">Select a tenant</option>
-        <option *ngFor="let recipient of selectedRecipientOptions"
-          [value]="recipient.tenant_id + ':' + recipient.boarding_house_id">
+
+        <option
+          *ngFor="let recipient of selectedRecipientOptions"
+          [value]="recipient.tenant_id + ':' + recipient.boarding_house_id"
+        >
           {{ recipient.tenant_name }} · {{ recipient.boarding_house_name }}
         </option>
       </select>
-      <p *ngIf="isLoadingRecipients" role="status" class="dialog-hint">Loading recipients...</p>
-      <p *ngIf="!isLoadingRecipients && recipients.length === 0" class="dialog-hint">
+
+      <p
+        *ngIf="isLoadingRecipients"
+        role="status"
+        class="dialog-hint"
+      >
+        Loading recipients...
+      </p>
+
+      <p
+        *ngIf="!isLoadingRecipients && recipients.length === 0"
+        class="dialog-hint"
+      >
         No linked tenants with room-assignment history are available.
       </p>
+
       <div class="dialog-actions">
-        <button type="button" class="btn btn-outline" (click)="closeNewConversation()"
-          [disabled]="isCreatingConversation">Cancel</button>
-        <button type="button" class="btn btn-primary" (click)="createConversation()"
-          [disabled]="!selectedRecipient || isCreatingConversation">
+
+        <button
+          type="button"
+          class="btn btn-outline"
+          (click)="closeNewConversation()"
+          [disabled]="isCreatingConversation"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="createConversation()"
+          [disabled]="!selectedRecipient || isCreatingConversation"
+        >
           {{ isCreatingConversation ? 'Opening...' : 'Continue' }}
         </button>
+
       </div>
     </section>
   </div>

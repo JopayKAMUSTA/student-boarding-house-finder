@@ -18,6 +18,8 @@ export class AuthService {
     }).pipe(
       tap(response => {
         if (response.success && response.data.token) {
+          this.clearSession();
+
           sessionStorage.setItem('admin_token', response.data.token);
           sessionStorage.setItem('admin_user', JSON.stringify(response.data));
         }
@@ -35,9 +37,7 @@ export class AuthService {
         }
       }
     ).pipe(
-      tap(() => {
-        this.clearSession();
-      })
+      tap(() => this.clearSession())
     );
   }
 
@@ -57,5 +57,9 @@ export class AuthService {
   clearSession(): void {
     sessionStorage.removeItem('admin_token');
     sessionStorage.removeItem('admin_user');
+
+    // Also clear any old remembered session.
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
   }
 }

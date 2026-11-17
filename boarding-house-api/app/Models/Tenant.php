@@ -7,13 +7,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-/**
- * @property int $id
- * @property int $owner_id
- * @property int|null $user_id
- * @property string $full_name
- * @property string $contact_number
- */
 class Tenant extends Model
 {
     protected $fillable = [
@@ -24,6 +17,14 @@ class Tenant extends Model
         'emergency_contact_name',
         'emergency_contact_number',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'owner_id' => 'integer',
+            'user_id' => 'integer',
+        ];
+    }
 
     public function owner(): BelongsTo
     {
@@ -47,6 +48,8 @@ class Tenant extends Model
 
     public function currentAssignment(): HasOne
     {
-        return $this->hasOne(RoomAssignment::class)->where('status', 'active');
+        return $this->hasOne(RoomAssignment::class)
+            ->where('status', 'active')
+            ->latestOfMany();
     }
 }

@@ -20,7 +20,12 @@ class OwnerTenantManagementTest extends TestCase
     public function test_owner_can_register_walk_in_tenant_and_link_student_account(): void
     {
         $owner = $this->createOwner();
-        $student = User::factory()->create(['role' => 'student']);
+
+        $student = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
         Sanctum::actingAs($owner);
 
         $this->postJson('/api/owner/tenants', [
@@ -51,6 +56,7 @@ class OwnerTenantManagementTest extends TestCase
     public function test_owner_cannot_link_a_non_student_account(): void
     {
         Sanctum::actingAs($this->createOwner());
+
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->postJson('/api/owner/tenants', [
@@ -69,6 +75,7 @@ class OwnerTenantManagementTest extends TestCase
         $room = $this->createRoom($house);
         $tenant = $this->createTenant($owner, ['full_name' => 'Maria Santos']);
         $assignment = $this->createAssignment($tenant, $room);
+
         Sanctum::actingAs($owner);
 
         $this->getJson('/api/owner/tenants?search=Maria&boarding_house_id='.$house->id.'&assignment_status=active')
@@ -88,14 +95,17 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $otherOwner = $this->createOwner();
         $tenant = $this->createTenant($otherOwner);
+
         Sanctum::actingAs($owner);
 
         $this->getJson("/api/owner/tenants/{$tenant->id}")->assertNotFound();
+
         $this->putJson("/api/owner/tenants/{$tenant->id}", [
             'contact_number' => '09171234567',
         ])->assertNotFound();
 
         $ownedTenant = $this->createTenant($owner);
+
         $this->putJson("/api/owner/tenants/{$ownedTenant->id}", [
             'owner_id' => $otherOwner->id,
             'contact_number' => '09171234567',
@@ -106,11 +116,17 @@ class OwnerTenantManagementTest extends TestCase
     public function test_owner_can_update_contact_information_without_changing_tenant_identity(): void
     {
         $owner = $this->createOwner();
-        $student = User::factory()->create(['role' => 'student']);
+
+        $student = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
         $tenant = $this->createTenant($owner, [
             'user_id' => $student->id,
             'full_name' => 'Original Tenant Name',
         ]);
+
         Sanctum::actingAs($owner);
 
         $this->putJson("/api/owner/tenants/{$tenant->id}", [
@@ -154,6 +170,7 @@ class OwnerTenantManagementTest extends TestCase
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house, ['max_occupants' => 1]);
         $tenant = $this->createTenant($owner);
+
         Sanctum::actingAs($owner);
 
         $response = $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
@@ -169,6 +186,7 @@ class OwnerTenantManagementTest extends TestCase
             'boarding_house_room_id' => $room->id,
             'monthly_rent' => '5000.00',
         ]);
+
         $this->assertDatabaseHas('boarding_house_rooms', [
             'id' => $room->id,
             'availability_status' => 'occupied',
@@ -178,6 +196,7 @@ class OwnerTenantManagementTest extends TestCase
     public function test_assignment_immediately_generates_the_due_anniversary_bill_for_owner_management(): void
     {
         Carbon::setTestNow('2026-11-14 12:00:00');
+
         try {
             $owner = $this->createOwner();
             $house = $this->createBoardingHouse($owner, [
@@ -185,12 +204,14 @@ class OwnerTenantManagementTest extends TestCase
             ]);
             $room = $this->createRoom($house, ['monthly_rent' => '3500.00']);
             $tenant = $this->createTenant($owner, ['full_name' => 'test full']);
+
             Sanctum::actingAs($owner);
 
             $assignmentResponse = $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
                 'boarding_house_room_id' => $room->id,
                 'move_in_date' => '2026-10-11',
             ])->assertCreated();
+
             $assignmentId = $assignmentResponse->json('data.id');
 
             $this->assertDatabaseHas('rental_bills', [
@@ -214,11 +235,13 @@ class OwnerTenantManagementTest extends TestCase
     public function test_future_move_in_does_not_generate_a_bill_before_its_due_cycle(): void
     {
         Carbon::setTestNow('2026-11-14 12:00:00');
+
         try {
             $owner = $this->createOwner();
             $house = $this->createBoardingHouse($owner);
             $room = $this->createRoom($house);
             $tenant = $this->createTenant($owner);
+
             Sanctum::actingAs($owner);
 
             $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
@@ -235,12 +258,15 @@ class OwnerTenantManagementTest extends TestCase
     public function test_immediate_generation_is_idempotent_for_retries_and_the_scheduled_backup(): void
     {
         Carbon::setTestNow('2026-11-14 12:00:00');
+
         try {
             $owner = $this->createOwner();
             $house = $this->createBoardingHouse($owner);
             $room = $this->createRoom($house);
             $tenant = $this->createTenant($owner);
+
             Sanctum::actingAs($owner);
+
             $payload = [
                 'boarding_house_room_id' => $room->id,
                 'move_in_date' => '2026-10-11',
@@ -248,9 +274,11 @@ class OwnerTenantManagementTest extends TestCase
 
             $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", $payload)
                 ->assertCreated();
+
             $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", $payload)
                 ->assertUnprocessable()
                 ->assertJsonValidationErrors(['tenant']);
+
             Artisan::call('rental-bills:generate-monthly');
 
             $this->assertDatabaseCount('rental_bills', 1);
@@ -262,6 +290,7 @@ class OwnerTenantManagementTest extends TestCase
     public function test_transfer_generates_bills_for_the_new_assignment_without_changing_old_bills_or_payments(): void
     {
         Carbon::setTestNow('2026-11-14 12:00:00');
+
         try {
             $owner = $this->createOwner();
             $house = $this->createBoardingHouse($owner);
@@ -272,23 +301,27 @@ class OwnerTenantManagementTest extends TestCase
             ]);
             $tenant = $this->createTenant($owner);
             $previous = $this->createAssignment($tenant, $source);
+
             $oldBill = $previous->rentalBills()->create([
                 'amount' => '5000.00',
                 'rental_period_start' => '2026-10-01',
                 'rental_period_end' => '2026-10-10',
                 'due_date' => '2026-10-11',
             ]);
+
             $payment = $oldBill->payments()->create([
                 'amount' => '100.00',
                 'payment_date' => '2026-10-10',
                 'recorded_by' => $owner->id,
             ]);
+
             Sanctum::actingAs($owner);
 
             $response = $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
                 'boarding_house_room_id' => $destination->id,
                 'move_in_date' => '2026-10-11',
             ])->assertCreated();
+
             $newAssignmentId = $response->json('data.id');
 
             $this->assertDatabaseHas('rental_bills', [
@@ -298,11 +331,13 @@ class OwnerTenantManagementTest extends TestCase
                 'rental_period_start' => '2026-10-01 00:00:00',
                 'rental_period_end' => '2026-10-10 00:00:00',
             ]);
+
             $this->assertDatabaseHas('rental_payments', [
                 'id' => $payment->id,
                 'rental_bill_id' => $oldBill->id,
                 'amount' => '100.00',
             ]);
+
             $this->assertDatabaseHas('rental_bills', [
                 'room_assignment_id' => $newAssignmentId,
                 'amount' => '6200.00',
@@ -310,7 +345,9 @@ class OwnerTenantManagementTest extends TestCase
                 'rental_period_end' => '2026-12-10 00:00:00',
                 'due_date' => '2026-12-11 00:00:00',
             ]);
+
             $this->assertDatabaseCount('rental_bills', 2);
+
             $this->assertDatabaseHas('room_assignments', [
                 'id' => $previous->id,
                 'status' => 'moved_out',
@@ -325,6 +362,7 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house);
+
         Sanctum::actingAs($owner);
 
         $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
@@ -339,11 +377,14 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house);
+
         $tenant = $this->createTenant($owner, [
             'emergency_contact_name' => 'Maria Contact',
             'emergency_contact_number' => '09170000000',
         ]);
+
         $this->createAssignment($tenant, $room);
+
         Sanctum::actingAs($owner);
 
         $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
@@ -365,10 +406,13 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house, ['max_occupants' => 3]);
+
         $firstTenant = $this->createTenant($owner, ['full_name' => 'First Tenant']);
         $secondTenant = $this->createTenant($owner, ['full_name' => 'Second Tenant']);
+
         $this->createAssignment($firstTenant, $room);
         $this->createAssignment($secondTenant, $room);
+
         Sanctum::actingAs($owner);
 
         $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
@@ -385,8 +429,13 @@ class OwnerTenantManagementTest extends TestCase
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house);
         $tenant = $this->createTenant($owner);
+
         $assignment = $this->createAssignment($tenant, $room);
-        $assignment->update(['status' => 'moved_out', 'move_out_date' => '2026-11-01']);
+        $assignment->update([
+            'status' => 'moved_out',
+            'move_out_date' => '2026-11-01',
+        ]);
+
         Sanctum::actingAs($owner);
 
         $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
@@ -402,7 +451,9 @@ class OwnerTenantManagementTest extends TestCase
         $source = $this->createRoom($house);
         $destination = $this->createRoom($house, ['room_number' => '102']);
         $tenant = $this->createTenant($owner);
+
         $this->createAssignment($tenant, $source);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
@@ -428,7 +479,9 @@ class OwnerTenantManagementTest extends TestCase
         $otherOwner = $this->createOwner();
         $house = $this->createBoardingHouse($otherOwner);
         $room = $this->createRoom($house);
+
         $this->createAssignment($this->createTenant($otherOwner), $room);
+
         Sanctum::actingAs($owner);
 
         $this->getJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
@@ -440,8 +493,10 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house, ['max_occupants' => 1]);
+
         $this->createAssignment($this->createTenant($owner), $room);
         $tenant = $this->createTenant($owner);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
@@ -458,6 +513,7 @@ class OwnerTenantManagementTest extends TestCase
         $house = $this->createBoardingHouse($otherOwner);
         $room = $this->createRoom($house);
         $tenant = $this->createTenant($owner);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
@@ -472,6 +528,7 @@ class OwnerTenantManagementTest extends TestCase
         $house = $this->createBoardingHouse($owner, ['status' => 'pending']);
         $room = $this->createRoom($house);
         $tenant = $this->createTenant($owner);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
@@ -486,6 +543,7 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $house = $this->createBoardingHouse($owner);
         $tenant = $this->createTenant($owner);
+
         Sanctum::actingAs($owner);
 
         foreach (['reserved', 'under_maintenance'] as $status) {
@@ -493,6 +551,7 @@ class OwnerTenantManagementTest extends TestCase
                 'room_number' => $status === 'reserved' ? '102' : '103',
                 'availability_status' => $status,
             ]);
+
             $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
                 'boarding_house_room_id' => $room->id,
                 'move_in_date' => '2026-11-01',
@@ -508,7 +567,9 @@ class OwnerTenantManagementTest extends TestCase
         $source = $this->createRoom($house);
         $destination = $this->createRoom($house, ['room_number' => '102']);
         $tenant = $this->createTenant($owner);
+
         $this->createAssignment($tenant, $source);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/assignments", [
@@ -523,12 +584,15 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $house = $this->createBoardingHouse($owner);
         $source = $this->createRoom($house);
+
         $destination = $this->createRoom($house, [
             'room_number' => '102',
             'monthly_rent' => 6200,
         ]);
+
         $tenant = $this->createTenant($owner);
         $previous = $this->createAssignment($tenant, $source);
+
         Sanctum::actingAs($owner);
 
         $response = $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
@@ -539,14 +603,19 @@ class OwnerTenantManagementTest extends TestCase
             ->assertJsonPath('data.monthly_rent', '6200.00');
 
         $previous->refresh();
+
         $this->assertSame('moved_out', $previous->status);
         $this->assertSame('2026-11-04', $previous->move_out_date->toDateString());
+
         $newAssignment = RoomAssignment::findOrFail($response->json('data.id'));
+
         $this->assertSame('2026-11-05', $newAssignment->move_in_date->toDateString());
+
         $this->assertDatabaseHas('room_assignments', [
             'id' => $response->json('data.id'),
             'status' => 'active',
         ]);
+
         $this->getJson("/api/owner/tenants/{$tenant->id}")
             ->assertOk()
             ->assertJsonCount(2, 'data.assignments');
@@ -560,6 +629,7 @@ class OwnerTenantManagementTest extends TestCase
         $destination = $this->createRoom($house, ['room_number' => '102']);
         $tenant = $this->createTenant($owner);
         $previous = $this->createAssignment($tenant, $source);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
@@ -573,6 +643,7 @@ class OwnerTenantManagementTest extends TestCase
             'status' => 'active',
             'move_out_date' => null,
         ]);
+
         $this->assertDatabaseCount('room_assignments', 1);
     }
 
@@ -584,6 +655,7 @@ class OwnerTenantManagementTest extends TestCase
         $destination = $this->createRoom($house, ['room_number' => '102']);
         $tenant = $this->createTenant($owner);
         $previous = $this->createAssignment($tenant, $source);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
@@ -597,6 +669,7 @@ class OwnerTenantManagementTest extends TestCase
             'status' => 'active',
             'move_out_date' => null,
         ]);
+
         $this->assertDatabaseCount('room_assignments', 1);
     }
 
@@ -608,7 +681,9 @@ class OwnerTenantManagementTest extends TestCase
         $source = $this->createRoom($sourceHouse);
         $destination = $this->createRoom($destinationHouse);
         $tenant = $this->createTenant($owner);
+
         $previous = $this->createAssignment($tenant, $source);
+
         Sanctum::actingAs($owner);
 
         $this->postJson("/api/owner/tenants/{$tenant->id}/transfer", [
@@ -629,7 +704,9 @@ class OwnerTenantManagementTest extends TestCase
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house, ['max_occupants' => 1]);
         $tenant = $this->createTenant($owner);
+
         $assignment = $this->createAssignment($tenant, $room);
+
         Sanctum::actingAs($owner);
 
         $this->patchJson("/api/owner/tenants/{$tenant->id}/move-out")
@@ -637,12 +714,15 @@ class OwnerTenantManagementTest extends TestCase
             ->assertJsonPath('data.status', 'moved_out');
 
         $assignment->refresh();
+
         $this->assertSame('moved_out', $assignment->status);
         $this->assertSame(now()->toDateString(), $assignment->move_out_date->toDateString());
+
         $this->assertDatabaseHas('boarding_house_rooms', [
             'id' => $room->id,
             'availability_status' => 'available',
         ]);
+
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id]);
     }
 
@@ -651,8 +731,10 @@ class OwnerTenantManagementTest extends TestCase
         $owner = $this->createOwner();
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house, ['max_occupants' => 2]);
+
         $this->createAssignment($this->createTenant($owner), $room);
         $this->createAssignment($this->createTenant($owner), $room);
+
         Sanctum::actingAs($owner);
 
         $this->putJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}", [
@@ -668,8 +750,14 @@ class OwnerTenantManagementTest extends TestCase
         $house = $this->createBoardingHouse($owner);
         $room = $this->createRoom($house);
         $tenant = $this->createTenant($owner);
+
         $assignment = $this->createAssignment($tenant, $room);
-        $assignment->update(['status' => 'moved_out', 'move_out_date' => '2026-11-01']);
+
+        $assignment->update([
+            'status' => 'moved_out',
+            'move_out_date' => '2026-11-01',
+        ]);
+
         Sanctum::actingAs($owner);
 
         $this->deleteJson("/api/owner/boarding-houses/{$house->id}/rooms/{$room->id}")
@@ -681,7 +769,10 @@ class OwnerTenantManagementTest extends TestCase
 
     private function createOwner(): User
     {
-        return User::factory()->create(['role' => 'owner', 'status' => 'active']);
+        return User::factory()->create([
+            'role' => 'owner',
+            'status' => 'active',
+        ]);
     }
 
     private function createTenant(User $owner, array $attributes = []): Tenant

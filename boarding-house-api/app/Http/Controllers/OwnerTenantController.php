@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\BoardinghouseRoom;
 use App\Models\RoomAssignment;
 use App\Models\Tenant;
+use App\Models\User;
+use App\Notifications\TenantAssignedNotification;
+use App\Notifications\TenantEventNotification;
 use App\Services\RentalBillingCycle;
 use App\Services\RentalBillGenerator;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,6 +21,45 @@ use Illuminate\Validation\ValidationException;
 
 class OwnerTenantController extends Controller
 {
+    public function students(Request $request): JsonResponse
+    {
+        $this->authorizeOwner($request);
+
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $search = trim($validated['search'] ?? '');
+
+        $activeTenantUserIds = Tenant::query()
+            ->whereNotNull('user_id')
+            ->whereHas('assignments', function (Builder $query) {
+                $query->where('status', 'active');
+            })
+            ->select('user_id');
+
+        $students = User::query()
+            ->where('role', 'student')
+            ->where('status', 'active')
+            ->whereNotIn('id', $activeTenantUserIds)
+            ->when($search !== '', function (Builder $query) use ($search) {
+                $query->where(function (Builder $query) use ($search) {
+                    $query->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('email', 'like', '%' . $search . '%');
+                });
+            })
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->paginate($validated['per_page'] ?? 15);
+
+        return response()->json([
+            'success' => true,
+            'data' => $students,
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $this->authorizeOwner($request);
@@ -36,10 +78,13 @@ class OwnerTenantController extends Controller
                 'currentAssignment.boardingHouseRoom.boardingHouse:id,name',
             ])
             ->when(
-                ! empty($validated['search']),
+                !empty($validated['search']),
                 fn (Builder $query) => $query->where(function (Builder $query) use ($validated) {
-                    $query->where('full_name', 'like', '%'.$validated['search'].'%')
-                        ->orWhere('contact_number', 'like', '%'.$validated['search'].'%');
+                    $query->where('full_name', 'like', '%' . $validated['search'] . '%')
+                        ->orWhere('contact_number', 'like', '%' . $validated['search'] . '%')
+                        ->orWhereHas('student', function (Builder $student) use ($validated) {
+                            $student->where('email', 'like', '%' . $validated['search'] . '%');
+                        });
                 })
             )
             ->when(
@@ -89,22 +134,59 @@ class OwnerTenantController extends Controller
             'user_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('users', 'id')->where('role', 'student'),
+                Rule::exists('users', 'id')
+                    ->where('role', 'student')
+                    ->where('status', 'active'),
             ],
-            'full_name' => ['required', 'string', 'max:255'],
+            'full_name' => [
+                'required_without:user_id',
+                'nullable',
+                'string',
+                'max:255',
+            ],
             'contact_number' => ['required', 'string', 'max:30'],
             'emergency_contact_name' => ['nullable', 'string', 'max:255'],
             'emergency_contact_number' => ['nullable', 'string', 'max:30'],
         ]);
 
+        $student = null;
+
+        if (!empty($validated['user_id'])) {
+            $student = User::query()
+                ->where('role', 'student')
+                ->where('status', 'active')
+                ->findOrFail($validated['user_id']);
+
+            $alreadyAssigned = Tenant::query()
+                ->where('user_id', $student->id)
+                ->whereHas('assignments', function (Builder $query) {
+                    $query->where('status', 'active');
+                })
+                ->exists();
+
+            if ($alreadyAssigned) {
+                throw ValidationException::withMessages([
+                    'user_id' => [
+                        'This student already has an active room assignment.',
+                    ],
+                ]);
+            }
+        }
+
         $tenant = Tenant::create([
-            ...$validated,
             'owner_id' => $request->user()->id,
+            'user_id' => $student?->id,
+            'full_name' => $student?->name ?? $validated['full_name'],
+            'contact_number' => $validated['contact_number'],
+            'emergency_contact_name' => $validated['emergency_contact_name'] ?? null,
+            'emergency_contact_number' => $validated['emergency_contact_number'] ?? null,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Tenant registered successfully.',
+            'message' => $student
+                ? 'Student registered as a tenant successfully.'
+                : 'Walk-in tenant registered successfully.',
             'data' => $tenant->load('student:id,name,email'),
         ], 201);
     }
@@ -112,6 +194,7 @@ class OwnerTenantController extends Controller
     public function show(Request $request, Tenant $tenant): JsonResponse
     {
         $this->authorizeTenant($request, $tenant);
+
         $tenant->load([
             'student:id,name,email',
             'currentAssignment.boardingHouseRoom.boardingHouse:id,name,address,barangay,city',
@@ -130,6 +213,7 @@ class OwnerTenantController extends Controller
     public function update(Request $request, Tenant $tenant): JsonResponse
     {
         $this->authorizeTenant($request, $tenant);
+
         $validated = $request->validate([
             'owner_id' => ['prohibited'],
             'contact_number' => ['required', 'string', 'max:30'],
@@ -153,6 +237,7 @@ class OwnerTenantController extends Controller
         RentalBillingCycle $billingCycles
     ): JsonResponse {
         $this->authorizeTenant($request, $tenant);
+
         $validated = $request->validate([
             'boarding_house_room_id' => ['required', 'integer', 'exists:boarding_house_rooms,id'],
             'move_in_date' => ['required', 'date'],
@@ -166,6 +251,7 @@ class OwnerTenantController extends Controller
             $billingCycles
         ) {
             $lockedTenant = $this->lockOwnedTenant($request, $tenant);
+
             if ($lockedTenant->assignments()->where('status', 'active')->exists()) {
                 throw ValidationException::withMessages([
                     'tenant' => ['The tenant already has an active room assignment.'],
@@ -173,6 +259,7 @@ class OwnerTenantController extends Controller
             }
 
             $room = $this->lockRoom((int) $validated['boarding_house_room_id']);
+
             $this->authorizeRoomOwner($request, $room);
             $this->ensureApprovedBoardingHouse($room);
             $this->ensureAssignable($room);
@@ -185,6 +272,7 @@ class OwnerTenantController extends Controller
             ]);
 
             $this->syncRoomAvailability($room);
+
             $billGenerator->generateDueCyclesForAssignment(
                 (int) $assignment->id,
                 $billingCycles
@@ -193,10 +281,29 @@ class OwnerTenantController extends Controller
             return $assignment;
         });
 
+        $assignment->load('boardingHouseRoom.boardingHouse:id,name');
+
+        if ($tenant->user_id) {
+            $student = User::query()->find($tenant->user_id);
+
+            if ($student && $student->role === 'student') {
+                $student->notify(new TenantAssignedNotification([
+                    'title' => 'Room Assignment Confirmed',
+                    'message' => 'You have been assigned to a boarding house. Check your room details.',
+                    'type' => 'tenant_assigned',
+                    'assignment_id' => $assignment->id,
+                    'boarding_house_name' => $assignment->boardingHouseRoom->boardingHouse->name,
+                    'room_number' => $assignment->boardingHouseRoom->room_number,
+                    'move_in_date' => $assignment->move_in_date->toDateString(),
+                    'monthly_rent' => $assignment->monthly_rent,
+                ]));
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Tenant assigned to the room successfully.',
-            'data' => $assignment->load('boardingHouseRoom.boardingHouse:id,name'),
+            'data' => $assignment,
         ], 201);
     }
 
@@ -207,6 +314,7 @@ class OwnerTenantController extends Controller
         RentalBillingCycle $billingCycles
     ): JsonResponse {
         $this->authorizeTenant($request, $tenant);
+
         $validated = $request->validate([
             'boarding_house_room_id' => ['required', 'integer', 'exists:boarding_house_rooms,id'],
             'move_in_date' => ['required', 'date'],
@@ -220,19 +328,21 @@ class OwnerTenantController extends Controller
             $billingCycles
         ) {
             $lockedTenant = $this->lockOwnedTenant($request, $tenant);
+
             $current = $lockedTenant->assignments()
                 ->where('status', 'active')
                 ->lockForUpdate()
                 ->first();
 
-            if (! $current) {
+            if (!$current) {
                 throw ValidationException::withMessages([
                     'tenant' => ['The tenant does not have an active room assignment to transfer.'],
                 ]);
             }
 
             $transferDate = Carbon::parse($validated['move_in_date'])->startOfDay();
-            if (! $transferDate->gt($current->move_in_date)) {
+
+            if (!$transferDate->gt($current->move_in_date)) {
                 throw ValidationException::withMessages([
                     'move_in_date' => [
                         'The transfer date must be later than the current assignment move-in date.',
@@ -241,6 +351,7 @@ class OwnerTenantController extends Controller
             }
 
             $destinationId = (int) $validated['boarding_house_room_id'];
+
             if ($destinationId === (int) $current->boarding_house_room_id) {
                 throw ValidationException::withMessages([
                     'boarding_house_room_id' => ['Choose a different room for the transfer.'],
@@ -253,10 +364,12 @@ class OwnerTenantController extends Controller
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
+
             $source = $rooms->get($current->boarding_house_room_id);
             $destination = $rooms->get($destinationId);
 
-            abort_if(! $source || ! $destination, 404);
+            abort_if(!$source || !$destination, 404);
+
             $this->authorizeRoomOwner($request, $destination);
             $this->ensureSameBoardingHouse($source, $destination);
             $this->ensureApprovedBoardingHouse($destination);
@@ -278,6 +391,7 @@ class OwnerTenantController extends Controller
 
             $this->syncRoomAvailability($source);
             $this->syncRoomAvailability($destination);
+
             $billGenerator->generateDueCyclesForAssignment(
                 (int) $newAssignment->id,
                 $billingCycles
@@ -286,10 +400,23 @@ class OwnerTenantController extends Controller
             return $newAssignment;
         });
 
+        $assignment->load('boardingHouseRoom.boardingHouse:id,name');
+
+        $this->notifyLinkedStudent($tenant, [
+            'title' => 'Room Transfer Update',
+            'message' => 'Your room assignment has been updated.',
+            'type' => 'room_transfer',
+            'assignment_id' => $assignment->id,
+            'boarding_house_name' => $assignment->boardingHouseRoom->boardingHouse->name,
+            'room_number' => $assignment->boardingHouseRoom->room_number,
+            'move_in_date' => $assignment->move_in_date->toDateString(),
+            'monthly_rent' => $assignment->monthly_rent,
+        ]);
+
         return response()->json([
             'success' => true,
             'message' => 'Tenant transferred successfully.',
-            'data' => $assignment->load('boardingHouseRoom.boardingHouse:id,name'),
+            'data' => $assignment,
         ], 201);
     }
 
@@ -299,36 +426,67 @@ class OwnerTenantController extends Controller
 
         $assignment = DB::transaction(function () use ($request, $tenant) {
             $lockedTenant = $this->lockOwnedTenant($request, $tenant);
+
             /** @var RoomAssignment|null $assignment */
             $assignment = $lockedTenant->assignments()
                 ->where('status', 'active')
                 ->lockForUpdate()
                 ->first();
 
-            if (! $assignment) {
+            if (!$assignment) {
                 throw ValidationException::withMessages([
                     'tenant' => ['The tenant does not have an active room assignment.'],
                 ]);
             }
 
             $room = $this->lockRoom((int) $assignment->boarding_house_room_id);
+
             DB::table('room_assignments')
                 ->where('id', $assignment->id)
                 ->update([
                     'status' => 'moved_out',
                     'move_out_date' => now()->toDateString(),
                 ]);
+
             $assignment->refresh();
+
             $this->syncRoomAvailability($room);
 
             return $assignment;
         });
 
+        $assignment->load('boardingHouseRoom.boardingHouse:id,name');
+
+        $this->notifyLinkedStudent($tenant, [
+            'title' => 'Move-out Confirmation',
+            'message' => 'Your move-out has been recorded by the boarding house owner.',
+            'type' => 'move_out',
+            'assignment_id' => $assignment->id,
+            'boarding_house_name' => $assignment->boardingHouseRoom->boardingHouse->name,
+            'room_number' => $assignment->boardingHouseRoom->room_number,
+            'move_out_date' => $assignment->move_out_date?->toDateString(),
+        ]);
+
         return response()->json([
             'success' => true,
             'message' => 'Tenant moved out successfully.',
-            'data' => $assignment->load('boardingHouseRoom.boardingHouse:id,name'),
+            'data' => $assignment,
         ]);
+    }
+
+    private function notifyLinkedStudent(Tenant $tenant, array $details): void
+    {
+        if (!$tenant->user_id) {
+            return;
+        }
+
+        $student = User::query()
+            ->where('role', 'student')
+            ->find($tenant->user_id);
+
+        if ($student) {
+            $student->notify(new TenantEventNotification($details));
+        }
     }
 
     private function authorizeOwner(Request $request): void
@@ -339,7 +497,11 @@ class OwnerTenantController extends Controller
     private function authorizeTenant(Request $request, Tenant $tenant): void
     {
         $this->authorizeOwner($request);
-        abort_unless((int) $tenant->owner_id === (int) $request->user()->id, 404);
+
+        abort_unless(
+            (int) $tenant->owner_id === (int) $request->user()->id,
+            404
+        );
     }
 
     private function lockOwnedTenant(Request $request, Tenant $tenant): Tenant
@@ -379,7 +541,7 @@ class OwnerTenantController extends Controller
 
     private function ensureAssignable(BoardinghouseRoom $room): void
     {
-        if (! in_array($room->availability_status, ['available', 'occupied'], true)) {
+        if (!in_array($room->availability_status, ['available', 'occupied'], true)) {
             throw ValidationException::withMessages([
                 'boarding_house_room_id' => [
                     'The room is reserved or under maintenance and cannot be assigned.',
@@ -409,11 +571,14 @@ class OwnerTenantController extends Controller
 
     private function syncRoomAvailability(BoardinghouseRoom $room): void
     {
-        if (! in_array($room->availability_status, ['available', 'occupied'], true)) {
+        if (!in_array($room->availability_status, ['available', 'occupied'], true)) {
             return;
         }
 
-        $activeAssignments = $room->assignments()->where('status', 'active')->count();
+        $activeAssignments = $room->assignments()
+            ->where('status', 'active')
+            ->count();
+
         $room->update([
             'availability_status' => $activeAssignments >= $room->max_occupants
                 ? 'occupied'

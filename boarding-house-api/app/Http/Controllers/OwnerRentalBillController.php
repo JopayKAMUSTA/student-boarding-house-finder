@@ -6,6 +6,7 @@ use App\Models\RentalBill;
 use App\Models\RentalPayment;
 use App\Models\RoomAssignment;
 use App\Models\Tenant;
+use App\Notifications\TenantEventNotification;
 use App\Services\RentalBillBalanceCalculator;
 use App\Services\RentalBillingCycle;
 use App\Services\RentalBillGenerator;
@@ -14,13 +15,16 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class OwnerRentalBillController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
         $this->authorizeOwner($request);
+
         $validated = $request->validate([
             'tenant_id' => ['nullable', 'integer'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -30,7 +34,10 @@ class OwnerRentalBillController extends Controller
         $bills = RentalBill::query()
             ->whereHas(
                 'roomAssignment.tenant',
-                fn (Builder $query) => $query->where('owner_id', $request->user()->id)
+                fn (Builder $query) => $query->where(
+                    'owner_id',
+                    $request->user()->id
+                )
             )
             ->when(
                 isset($validated['tenant_id']),
@@ -48,6 +55,7 @@ class OwnerRentalBillController extends Controller
                     $validated['month'],
                     config('app.timezone', 'UTC')
                 );
+
                 $query->whereYear('rental_period_start', $monthStart->year)
                     ->whereMonth('rental_period_start', $monthStart->month);
             })
@@ -69,20 +77,28 @@ class OwnerRentalBillController extends Controller
     public function generationStatus(
         Request $request,
         RentalBillingCycle $cycles
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $this->authorizeOwner($request);
+
         $validated = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
         ]);
+
         $timezone = config('app.timezone', 'UTC');
         $month = $validated['month'] ?? now($timezone)->format('Y-m');
-        abort_if($month > now($timezone)->format('Y-m'), 422, 'Future months cannot be reconciled.');
+
+        abort_if(
+            $month > now($timezone)->format('Y-m'),
+            422,
+            'Future months cannot be reconciled.'
+        );
+
         $monthStart = \Illuminate\Support\Carbon::createFromFormat(
             '!Y-m',
             $month,
             $timezone
         );
+
         $periodStart = $monthStart->toDateString();
         $periodEnd = $monthStart->copy()->endOfMonth()->toDateString();
 
@@ -91,18 +107,24 @@ class OwnerRentalBillController extends Controller
             ->whereDate('move_in_date', '<', $periodStart)
             ->whereHas(
                 'tenant',
-                fn (Builder $query) => $query->where('owner_id', $request->user()->id)
+                fn (Builder $query) => $query->where(
+                    'owner_id',
+                    $request->user()->id
+                )
             )
             ->whereHas(
                 'boardingHouseRoom.boardingHouse',
                 fn (Builder $query) => $query->where('status', 'approved')
             )
             ->get();
+
         $eligible = 0;
         $generated = 0;
+
         foreach ($assignments as $assignment) {
             $cycleStart = $cycles->startForMonth($assignment, $monthStart);
             $cycleEnd = $cycles->endForStart($assignment, $cycleStart);
+
             if (
                 $assignment->move_in_date->gt($cycleEnd) ||
                 ($assignment->move_out_date &&
@@ -112,11 +134,13 @@ class OwnerRentalBillController extends Controller
             }
 
             $eligible++;
+
             $alreadyCovered = RentalBill::query()
                 ->where('room_assignment_id', $assignment->id)
                 ->whereDate('rental_period_start', '<=', $cycleEnd->toDateString())
                 ->whereDate('rental_period_end', '>=', $cycleStart->toDateString())
                 ->exists();
+
             $generated += $alreadyCovered ? 1 : 0;
         }
 
@@ -141,6 +165,7 @@ class OwnerRentalBillController extends Controller
     public function store(Request $request, Tenant $tenant): JsonResponse
     {
         $this->authorizeTenant($request, $tenant);
+
         $validated = $request->validate([
             'room_assignment_id' => [
                 'required',
@@ -148,7 +173,11 @@ class OwnerRentalBillController extends Controller
                 'exists:room_assignments,id',
             ],
             'rental_period_start' => ['required', 'date_format:Y-m-d'],
-            'rental_period_end' => ['required', 'date_format:Y-m-d', 'after_or_equal:rental_period_start'],
+            'rental_period_end' => [
+                'required',
+                'date_format:Y-m-d',
+                'after_or_equal:rental_period_start',
+            ],
             'due_date' => ['required', 'date_format:Y-m-d'],
         ]);
 
@@ -177,11 +206,105 @@ class OwnerRentalBillController extends Controller
         ]);
     }
 
+    /**
+     * Send a rental bill email to the linked student.
+     */
+    public function send(Request $request, RentalBill $bill): JsonResponse
+    {
+        $this->authorizeBill($request, $bill);
+
+        $bill->load([
+            'roomAssignment.tenant.student',
+            'roomAssignment.boardingHouseRoom.boardingHouse',
+            'payments',
+        ]);
+
+        if ($bill->is_voided) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A voided bill cannot be sent.',
+            ], 422);
+        }
+
+        $tenant = $bill->roomAssignment?->tenant;
+        $student = $tenant?->student;
+
+        if (!$student || !$student->email) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This tenant is not linked to a student account with an email address.',
+            ], 422);
+        }
+
+        $room = $bill->roomAssignment?->boardingHouseRoom;
+        $boardingHouse = $room?->boardingHouse;
+
+        $balance = $bill->total_outstanding;
+
+        $emailBody = implode("\n", [
+            'Hello ' . $student->name . ',',
+            '',
+            'Your rental bill is now available in TagStay.',
+            '',
+            'Boarding House: ' . ($boardingHouse?->name ?? 'N/A'),
+            'Room: ' . ($room?->room_number ?? 'N/A'),
+            'Rental Period: ' .
+                $bill->rental_period_start->format('M d, Y') .
+                ' - ' .
+                $bill->rental_period_end->format('M d, Y'),
+            'Due Date: ' . $bill->due_date->format('M d, Y'),
+            'Original Amount: PHP ' . number_format((float) $bill->amount, 2),
+            'Remaining Balance: PHP ' . number_format((float) $balance, 2),
+            '',
+            'Please open your TagStay mobile application to view your bill and submit your payment.',
+            '',
+            'Thank you,',
+            'TagStay',
+        ]);
+
+        try {
+            Mail::raw($emailBody, function ($message) use ($student, $bill) {
+                $message
+                    ->to($student->email, $student->name)
+                    ->subject('TagStay Rental Bill #' . $bill->id);
+            });
+
+            $bill->forceFill([
+                'sent_at' => now(),
+            ])->save();
+
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'The email could not be sent. Please check your email configuration and try again.',
+            ], 502);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rental bill email sent successfully.',
+            'sent_at' => $bill->sent_at,
+            'recipient' => $student->email,
+        ]);
+    }
+
+    /**
+     * Record a payment and notify the linked student.
+     */
     public function recordPayment(Request $request, RentalBill $bill): JsonResponse
     {
         $this->authorizeBill($request, $bill);
+
         $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:99999999.99'],
+            'amount' => [
+                'required',
+                'numeric',
+                'decimal:0,2',
+                'min:0.01',
+                'max:99999999.99',
+            ],
             'payment_date' => ['required', 'date_format:Y-m-d'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -203,13 +326,16 @@ class OwnerRentalBillController extends Controller
                 'payments',
                 $lockedBill->payments()->lockForUpdate()->get()
             );
+
             $paymentDate = CarbonImmutable::parse(
                 $validated['payment_date'],
                 config('app.timezone', 'UTC')
             )->startOfDay();
+
             $calculator = app(RentalBillBalanceCalculator::class);
             $summary = $calculator->calculate($lockedBill, $paymentDate);
             $balance = $summary['_total_outstanding_cents'];
+
             if ($balance === 0) {
                 throw ValidationException::withMessages([
                     'bill' => ['The bill has already been paid in full.'],
@@ -217,6 +343,7 @@ class OwnerRentalBillController extends Controller
             }
 
             $paymentAmount = RentalBill::toCents($validated['amount']);
+
             if ($paymentAmount > $balance) {
                 throw ValidationException::withMessages([
                     'amount' => ['The payment cannot exceed the remaining balance.'],
@@ -231,14 +358,19 @@ class OwnerRentalBillController extends Controller
                 )
                 ->push($paymentDate->toDateString())
                 ->max();
+
             $historySummary = $calculator->calculate(
                 $lockedBill,
-                CarbonImmutable::parse($latestPaymentDate, config('app.timezone', 'UTC')),
+                CarbonImmutable::parse(
+                    $latestPaymentDate,
+                    config('app.timezone', 'UTC')
+                ),
                 [
                     'amount' => $validated['amount'],
                     'payment_date' => $validated['payment_date'],
                 ]
             );
+
             if ($historySummary['has_overpayment']) {
                 throw ValidationException::withMessages([
                     'amount' => [
@@ -256,22 +388,54 @@ class OwnerRentalBillController extends Controller
             ]);
         });
 
+        // Reload the bill after the successful transaction.
+        $updatedBill = $this->loadBillDetails($bill->fresh());
+
+        // Send the in-app notification only after payment is committed.
+        $tenant = $updatedBill->roomAssignment?->tenant;
+        $student = $tenant?->student;
+
+        if ($student && $student->role === 'student') {
+            $room = $updatedBill->roomAssignment?->boardingHouseRoom;
+            $boardingHouse = $room?->boardingHouse;
+
+            $student->notify(new TenantEventNotification([
+                'title' => 'Payment Confirmed',
+                'message' => 'Your rental payment has been recorded successfully.',
+                'type' => 'payment_confirmed',
+                'bill_id' => $updatedBill->id,
+                'payment_id' => $payment->id,
+                'amount_paid' => $payment->amount,
+                'payment_date' => $payment->payment_date->toDateString(),
+                'remaining_balance' => $updatedBill->total_outstanding,
+                'boarding_house_name' => $boardingHouse?->name,
+                'room_number' => $room?->room_number,
+                'rental_period_start' => $updatedBill->rental_period_start->toDateString(),
+                'rental_period_end' => $updatedBill->rental_period_end->toDateString(),
+            ]));
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Payment recorded successfully.',
-            'data' => $this->loadBillDetails($bill->fresh()),
-            'payment' => $payment->load(['recordedBy:id,name', 'voidedBy:id,name']),
+            'data' => $updatedBill,
+            'payment' => $payment->load([
+                'recordedBy:id,name',
+                'voidedBy:id,name',
+            ]),
         ], 201);
     }
 
     public function voidPayment(Request $request, RentalPayment $payment): JsonResponse
     {
         $this->authorizeOwner($request);
+
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
         ]);
 
         $this->authorizeBill($request, $payment->bill);
+
         $voidedPayment = DB::transaction(function () use (
             $request,
             $payment,
@@ -282,6 +446,7 @@ class OwnerRentalBillController extends Controller
                 ->whereKey($payment->rental_bill_id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
             /** @var RentalPayment $lockedPayment */
             $lockedPayment = $bill->payments()
                 ->whereKey($payment->id)
@@ -306,9 +471,23 @@ class OwnerRentalBillController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Payment voided successfully.',
-            'data' => $voidedPayment->load(['recordedBy:id,name', 'voidedBy:id,name']),
+            'data' => $voidedPayment->load([
+                'recordedBy:id,name',
+                'voidedBy:id,name',
+            ]),
             'bill' => $this->loadBillDetails($payment->bill->fresh()),
         ]);
+    }
+
+    private function notifyLinkedStudent(
+        Tenant $tenant,
+        array $details
+    ): void {
+        $student = $tenant->student;
+
+        if ($student && $student->role === 'student') {
+            $student->notify(new TenantEventNotification($details));
+        }
     }
 
     private function authorizeOwner(Request $request): void
@@ -319,30 +498,44 @@ class OwnerRentalBillController extends Controller
     private function authorizeTenant(Request $request, Tenant $tenant): void
     {
         $this->authorizeOwner($request);
-        abort_unless((int) $tenant->owner_id === (int) $request->user()->id, 404);
+
+        abort_unless(
+            (int) $tenant->owner_id === (int) $request->user()->id,
+            404
+        );
     }
 
     private function authorizeBill(Request $request, RentalBill $bill): void
     {
         $this->authorizeOwner($request);
-        abort_unless($bill->roomAssignment()->whereHas(
+
+        abort_unless(
+            $bill->roomAssignment()->whereHas(
                 'tenant',
-                fn (Builder $query) => $query->where('owner_id', $request->user()->id)
-            )->exists(), 404);
+                fn (Builder $query) => $query->where(
+                    'owner_id',
+                    $request->user()->id
+                )
+            )->exists(),
+            404
+        );
     }
 
     private function ownedBills(Request $request): Builder
     {
         return RentalBill::query()->whereHas(
             'roomAssignment.tenant',
-            fn (Builder $query) => $query->where('owner_id', $request->user()->id)
+            fn (Builder $query) => $query->where(
+                'owner_id',
+                $request->user()->id
+            )
         );
     }
 
     private function loadBillDetails(RentalBill $bill): RentalBill
     {
         return $bill->load([
-            'roomAssignment.tenant',
+            'roomAssignment.tenant.student',
             'roomAssignment.boardingHouseRoom.boardingHouse',
             'payments.recordedBy:id,name',
             'payments.reviewedBy:id,name',

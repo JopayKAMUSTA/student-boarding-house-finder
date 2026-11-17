@@ -1,3 +1,4 @@
+
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -16,7 +17,6 @@ export class Login {
   password = '';
 
   showPassword = false;
-  rememberMe = false;
 
   errorMessage = '';
   isLoading = false;
@@ -37,19 +37,26 @@ export class Login {
 
     this.isLoading = true;
 
-    this.authService.login(this.email, this.password).subscribe({
+    this.authService.login(
+      this.email,
+      this.password
+    ).subscribe({
 
       next: (response) => {
 
         this.isLoading = false;
 
         if (response.success && response.data.role === 'admin') {
+
           this.router.navigate(['/dashboard']);
+
         } else {
-          this.errorMessage = 'You are not authorized to access the admin dashboard.';
+
+          this.errorMessage =
+            'You are not authorized to access the admin dashboard.';
+
           this.authService.clearSession();
         }
-
       },
 
       error: (error) => {
@@ -57,12 +64,9 @@ export class Login {
         this.isLoading = false;
 
         this.errorMessage =
-          error.error?.message || 'Login failed. Please check your credentials.';
-
+          error.error?.message ||
+          'Login failed. Please check your credentials.';
       }
-
     });
-
   }
-
 }

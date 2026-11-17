@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $boarding_house_room_id
  * @property \Illuminate\Support\Carbon $move_in_date
  * @property \Illuminate\Support\Carbon|null $move_out_date
+ * @property string $monthly_rent
  * @property string $status
  */
 class RoomAssignment extends Model
@@ -41,7 +42,10 @@ class RoomAssignment extends Model
 
     public function boardingHouseRoom(): BelongsTo
     {
-        return $this->belongsTo(BoardinghouseRoom::class, 'boarding_house_room_id');
+        return $this->belongsTo(
+            BoardinghouseRoom::class,
+            'boarding_house_room_id'
+        );
     }
 
     public function rentalBills(): HasMany

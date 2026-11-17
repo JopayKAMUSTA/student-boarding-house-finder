@@ -75,6 +75,7 @@ export interface CreateBoardingHouseData {
 
 export type RoomType = 'Single Room' | 'Double-Sharing Room' | 'Shared Room';
 export type RoomPricingBasis = 'per_person' | 'entire_room';
+
 export type RoomAvailabilityStatus =
   | 'available'
   | 'occupied'
@@ -155,6 +156,25 @@ export interface TenantAssignmentInfo {
   };
 }
 
+export interface OwnerStudentOption {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface OwnerStudentPagination {
+  data: OwnerStudentOption[];
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface OwnerStudentListResponse {
+  success: boolean;
+  data: OwnerStudentPagination;
+}
+
 export interface OwnerTenantInfo {
   id: number;
   owner_id: number;
@@ -190,7 +210,7 @@ export interface OwnerTenantActionResponse {
 }
 
 export interface OwnerTenantData {
-  full_name: string;
+  user_id: number | null;
   contact_number: string;
   emergency_contact_name: string | null;
   emergency_contact_number: string | null;
@@ -236,14 +256,32 @@ export interface ConversationMessageInfo {
 
 export interface ConversationInfo {
   id: number;
-  tenant_id: number;
+  owner_id: number;
+  student_id: number | null;
+  tenant_id: number | null;
   boarding_house_id: number;
-  tenant: { id: number; full_name: string; user_id: number };
-  boarding_house: { id: number; name: string };
+  tenant: {
+    id: number;
+    full_name: string;
+    user_id: number;
+  } | null;
+  student: {
+    id: number;
+    name: string;
+    role: string;
+  } | null;
+  boarding_house: {
+    id: number;
+    name: string;
+  };
   latest_message: {
     id: number;
     body: string | null;
-    sender: { id: number; name: string; role: string };
+    sender: {
+      id: number;
+      name: string;
+      role: string;
+    };
     created_at: string;
   } | null;
   unread_count: number;
@@ -261,7 +299,6 @@ export interface ConversationPageResponse {
     total: number;
   };
 }
-
 
 export interface OwnerProfileData {
   contact_number: string | null;
@@ -304,7 +341,6 @@ export interface UpdateOwnerProfileData {
   business_name?: string | null;
   business_address?: string | null;
 }
-
 
 export interface ConversationMessagesResponse {
   success: boolean;
@@ -388,6 +424,7 @@ export interface RentalBillInfo {
   rental_period_start: string;
   rental_period_end: string;
   due_date: string;
+  sent_at?: string | null;
   amount_paid: string | number;
   balance: string | number;
   daily_late_fee_snapshot: string | number | null;
@@ -500,10 +537,12 @@ interface CreateBoardingHouseResponse {
   data: BoardingHouseRoomInfo;
 }
 
-export interface UpdateBoardingHouseBillingPolicyResponse {
+export interface UpdateOwnerBoardingHouseBillingPolicyResponse {
   success: boolean;
   message?: string;
-  data: BoardingHouseRoomInfo & { billing_policy: BillingPolicy };
+  data: BoardingHouseRoomInfo & {
+    billing_policy: BillingPolicy;
+  };
 }
 
 export interface BoardingHouseSettingsData {
@@ -530,32 +569,30 @@ interface OwnerLogoutResponse {
   providedIn: 'root'
 })
 export class OwnerAuth {
-
-  
   private http = inject(HttpClient);
 
   private readonly apiUrl = 'http://127.0.0.1:8000/api';
   private readonly tokenKey = 'owner_token';
   private readonly ownerKey = 'owner_user';
 
-sendRegistrationVerificationCode(
-  email: string
-): Observable<{ success: boolean; message: string }> {
-  return this.http.post<{ success: boolean; message: string }>(
-    `${this.apiUrl}/owner/register/send-verification-code`,
-    { email }
-  );
-}
+  sendRegistrationVerificationCode(
+    email: string
+  ): Observable<{ success: boolean; message: string }> {
+    return this.http.post<{ success: boolean; message: string }>(
+      `${this.apiUrl}/owner/register/send-verification-code`,
+      { email }
+    );
+  }
 
-verifyRegistrationEmail(
-  email: string,
-  code: string
-): Observable<{ success: boolean; message: string }> {
-  return this.http.post<{ success: boolean; message: string }>(
-    `${this.apiUrl}/owner/register/verify-email`,
-    { email, code }
-  );
-}
+  verifyRegistrationEmail(
+    email: string,
+    code: string
+  ): Observable<{ success: boolean; message: string }> {
+    return this.http.post<{ success: boolean; message: string }>(
+      `${this.apiUrl}/owner/register/verify-email`,
+      { email, code }
+    );
+  }
 
   registerOwner(data: {
     first_name: string;
@@ -585,7 +622,17 @@ verifyRegistrationEmail(
     localStorage.setItem(this.tokenKey, token);
 
     if (owner) {
-      const { id, name, first_name, middle_name, last_name, email, role, status } = owner;
+      const {
+        id,
+        name,
+        first_name,
+        middle_name,
+        last_name,
+        email,
+        role,
+        status
+      } = owner;
+
       localStorage.setItem(this.ownerKey, JSON.stringify({
         id,
         name,
@@ -607,28 +654,41 @@ verifyRegistrationEmail(
 
   getOwner(): OwnerInfo | null {
     const storedOwner = localStorage.getItem(this.ownerKey);
+
     if (!storedOwner) {
       return null;
     }
 
     try {
       const owner: unknown = JSON.parse(storedOwner);
+
       if (typeof owner !== 'object' || owner === null || Array.isArray(owner)) {
         localStorage.removeItem(this.ownerKey);
         return null;
       }
 
       const record = owner as Record<string, unknown>;
-      const stringFields = ['name', 'first_name', 'last_name', 'email', 'role', 'status'];
+      const stringFields = [
+        'name',
+        'first_name',
+        'last_name',
+        'email',
+        'role',
+        'status'
+      ];
+
       const hasInvalidString = stringFields.some((field) =>
         record[field] !== undefined && typeof record[field] !== 'string'
       );
+
       const hasInvalidId = record['id'] !== undefined &&
         typeof record['id'] !== 'string' &&
         typeof record['id'] !== 'number';
+
       const hasInvalidMiddleName = record['middle_name'] !== undefined &&
         record['middle_name'] !== null &&
         typeof record['middle_name'] !== 'string';
+
       if (hasInvalidString || hasInvalidId || hasInvalidMiddleName) {
         localStorage.removeItem(this.ownerKey);
         return null;
@@ -649,7 +709,6 @@ verifyRegistrationEmail(
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.ownerKey);
   }
-  
 
   getOwnerBoardingHouses(
     token: string,
@@ -676,8 +735,8 @@ verifyRegistrationEmail(
     token: string,
     boardingHouseId: number,
     billingPolicy: BillingPolicy
-  ): Observable<UpdateBoardingHouseBillingPolicyResponse> {
-    return this.http.patch<UpdateBoardingHouseBillingPolicyResponse>(
+  ): Observable<UpdateOwnerBoardingHouseBillingPolicyResponse> {
+    return this.http.patch<UpdateOwnerBoardingHouseBillingPolicyResponse>(
       `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/billing-policy`,
       { billing_policy: billingPolicy },
       { headers: this.authorizationHeaders(token) }
@@ -736,6 +795,7 @@ verifyRegistrationEmail(
     data: FormData
   ): Observable<BoardingHousePaymentMethodResponse> {
     data.set('_method', 'PUT');
+
     return this.http.post<BoardingHousePaymentMethodResponse>(
       `${this.apiUrl}/owner/boarding-houses/${boardingHouseId}/payment-methods/${methodId}`,
       data,
@@ -781,6 +841,27 @@ verifyRegistrationEmail(
     );
   }
 
+  getOwnerStudents(
+    token: string,
+    search = '',
+    page = 1,
+    perPage = 15
+  ): Observable<OwnerStudentListResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(perPage)
+    });
+
+    if (search.trim()) {
+      params.set('search', search.trim());
+    }
+
+    return this.http.get<OwnerStudentListResponse>(
+      `${this.apiUrl}/owner/students?${params.toString()}`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
   getOwnerTenants(
     token: string,
     page = 1,
@@ -791,6 +872,7 @@ verifyRegistrationEmail(
       page: String(page),
       per_page: String(perPage)
     });
+
     if (search.trim()) {
       params.set('search', search.trim());
     }
@@ -810,6 +892,7 @@ verifyRegistrationEmail(
       page: String(page),
       per_page: String(perPage)
     });
+
     return this.http.get<ConversationPageResponse>(
       `${this.apiUrl}/owner/conversations?${params.toString()}`,
       { headers: this.authorizationHeaders(token) }
@@ -825,6 +908,7 @@ verifyRegistrationEmail(
       page: String(page),
       per_page: String(perPage)
     });
+
     return this.http.get<MessageRecipientsResponse>(
       `${this.apiUrl}/owner/conversations/recipients?${params.toString()}`,
       { headers: this.authorizationHeaders(token) }
@@ -852,6 +936,7 @@ verifyRegistrationEmail(
       page: String(page),
       per_page: String(perPage)
     });
+
     return this.http.get<ConversationMessagesResponse>(
       `${this.apiUrl}/owner/conversations/${conversationId}/messages?${params.toString()}`,
       { headers: this.authorizationHeaders(token) }
@@ -897,6 +982,7 @@ verifyRegistrationEmail(
     download = false
   ): Observable<Blob> {
     const params = download ? '?download=1' : '';
+
     return this.http.get(
       `${this.apiUrl}/owner/conversations/${conversationId}/attachments/${attachmentId}${params}`,
       {
@@ -912,10 +998,15 @@ verifyRegistrationEmail(
     perPage = 15,
     month?: string
   ): Observable<RentalBillPageResponse> {
-    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(perPage)
+    });
+
     if (month) {
       params.set('month', month);
     }
+
     return this.http.get<RentalBillPageResponse>(
       `${this.apiUrl}/owner/rental-bills?${params.toString()}`,
       { headers: this.authorizationHeaders(token) }
@@ -927,6 +1018,7 @@ verifyRegistrationEmail(
     month: string
   ): Observable<RentalBillGenerationStatusResponse> {
     const params = new URLSearchParams({ month });
+
     return this.http.get<RentalBillGenerationStatusResponse>(
       `${this.apiUrl}/owner/rental-bills/generation-status?${params.toString()}`,
       { headers: this.authorizationHeaders(token) }
@@ -944,6 +1036,7 @@ verifyRegistrationEmail(
       page: String(page),
       per_page: String(perPage)
     });
+
     return this.http.get<RentalPaymentPageResponse>(
       `${this.apiUrl}/owner/rental-payment-submissions?${params.toString()}`,
       { headers: this.authorizationHeaders(token) }
@@ -953,7 +1046,11 @@ verifyRegistrationEmail(
   approveOwnerRentalPayment(
     token: string,
     paymentId: number,
-    data: { amount: number; payment_date: string; amount_adjustment_reason?: string }
+    data: {
+      amount: number;
+      payment_date: string;
+      amount_adjustment_reason?: string;
+    }
   ): Observable<ReviewRentalPaymentResponse> {
     return this.http.patch<ReviewRentalPaymentResponse>(
       `${this.apiUrl}/owner/rental-payments/${paymentId}/approve`,
@@ -974,7 +1071,10 @@ verifyRegistrationEmail(
     );
   }
 
-  getOwnerRentalPaymentProof(token: string, paymentId: number): Observable<Blob> {
+  getOwnerRentalPaymentProof(
+    token: string,
+    paymentId: number
+  ): Observable<Blob> {
     return this.http.get(
       `${this.apiUrl}/rental-payments/${paymentId}/proof`,
       {
@@ -1002,6 +1102,27 @@ verifyRegistrationEmail(
   ): Observable<RentalBillResponse> {
     return this.http.get<RentalBillResponse>(
       `${this.apiUrl}/owner/rental-bills/${billId}`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  sendOwnerRentalBill(
+    token: string,
+    billId: number
+  ): Observable<{
+    success: boolean;
+    message?: string;
+    sent_at?: string;
+    recipient?: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      message?: string;
+      sent_at?: string;
+      recipient?: string;
+    }>(
+      `${this.apiUrl}/owner/rental-bills/${billId}/send`,
+      {},
       { headers: this.authorizationHeaders(token) }
     );
   }
@@ -1041,7 +1162,10 @@ verifyRegistrationEmail(
     );
   }
 
-  getOwnerTenant(token: string, tenantId: number): Observable<OwnerTenantResponse> {
+  getOwnerTenant(
+    token: string,
+    tenantId: number
+  ): Observable<OwnerTenantResponse> {
     return this.http.get<OwnerTenantResponse>(
       `${this.apiUrl}/owner/tenants/${tenantId}`,
       { headers: this.authorizationHeaders(token) }
@@ -1085,19 +1209,19 @@ verifyRegistrationEmail(
   }
 
   changeOwnerPassword(
-  token: string,
-  data: {
-    current_password: string;
-    new_password: string;
-    new_password_confirmation: string;
+    token: string,
+    data: {
+      current_password: string;
+      new_password: string;
+      new_password_confirmation: string;
+    }
+  ): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(
+      `${this.apiUrl}/owner/profile/password`,
+      data,
+      { headers: this.authorizationHeaders(token) }
+    );
   }
-): Observable<{ message: string }> {
-  return this.http.put<{ message: string }>(
-    `${this.apiUrl}/owner/profile/password`,
-    data,
-    { headers: this.authorizationHeaders(token) }
-  );
-}
 
   moveOutOwnerTenant(
     token: string,
@@ -1205,37 +1329,38 @@ verifyRegistrationEmail(
     );
   }
 
-getOwnerProfile(token: string): Observable<OwnerProfileResponse> {
-  return this.http.get<OwnerProfileResponse>(
-    `${this.apiUrl}/owner/profile`,
-    { headers: this.authorizationHeaders(token) }
-  );
-}
+  getOwnerProfile(token: string): Observable<OwnerProfileResponse> {
+    return this.http.get<OwnerProfileResponse>(
+      `${this.apiUrl}/owner/profile`,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
 
-updateOwnerProfile(
-  token: string,
-  data: UpdateOwnerProfileData
-): Observable<{ message: string }> {
-  return this.http.put<{ message: string }>(
-    `${this.apiUrl}/owner/profile`,
-    data,
-    { headers: this.authorizationHeaders(token) }
-  );
-}
-submitOwnerIdentityDocuments(
-  token: string,
-  data: FormData
-): Observable<OwnerIdentitySubmissionResponse> {
-  return this.http.post<OwnerIdentitySubmissionResponse>(
-    `${this.apiUrl}/owner/profile/identity-documents`,
-    data,
-    { headers: this.authorizationHeaders(token) }
-  );
-}
+  updateOwnerProfile(
+    token: string,
+    data: UpdateOwnerProfileData
+  ): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(
+      `${this.apiUrl}/owner/profile`,
+      data,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
+
+  submitOwnerIdentityDocuments(
+    token: string,
+    data: FormData
+  ): Observable<OwnerIdentitySubmissionResponse> {
+    return this.http.post<OwnerIdentitySubmissionResponse>(
+      `${this.apiUrl}/owner/profile/identity-documents`,
+      data,
+      { headers: this.authorizationHeaders(token) }
+    );
+  }
 
   private authorizationHeaders(token: string): HttpHeaders {
-    return new HttpHeaders({ Authorization: `Bearer ${token}` });
+    return new HttpHeaders({
+      Authorization: `Bearer ${token}`
+    });
   }
 }
-
-

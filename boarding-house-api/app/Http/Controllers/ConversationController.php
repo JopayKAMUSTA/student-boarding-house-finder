@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 abstract class ConversationController extends Controller
@@ -25,12 +25,23 @@ abstract class ConversationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $this->authenticatedParticipant($request);
+
         $validated = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
-        $conversations = $this->participantConversations($user)
+
+        $query = $this->participantConversations($user);
+
+        // Students see conversations that already contain messages.
+        // Owners retain their existing conversation-list behavior.
+        if ($this->participantRole() === 'student') {
+            $query->whereHas('messages');
+        }
+
+        $conversations = $query
             ->with([
                 'tenant:id,user_id,full_name',
+                'student:id,name,role',
                 'boardingHouse:id,name',
                 'latestMessage.sender:id,name,role',
             ])
@@ -44,7 +55,8 @@ abstract class ConversationController extends Controller
             ->paginate($validated['per_page'] ?? 15);
 
         $conversations->through(
-            fn (Conversation $conversation): array => $this->presentConversation($conversation)
+            fn (Conversation $conversation): array =>
+                $this->presentConversation($conversation)
         );
 
         return response()->json([
@@ -56,13 +68,20 @@ abstract class ConversationController extends Controller
     public function recipients(Request $request): JsonResponse
     {
         $user = $this->authenticatedParticipant($request);
+
         abort_unless($this->participantRole() === 'owner', 403);
+
         $validated = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $recipients = DB::table('tenants')
-            ->join('room_assignments', 'room_assignments.tenant_id', '=', 'tenants.id')
+            ->join(
+                'room_assignments',
+                'room_assignments.tenant_id',
+                '=',
+                'tenants.id'
+            )
             ->join(
                 'boarding_house_rooms',
                 'boarding_house_rooms.id',
@@ -75,7 +94,12 @@ abstract class ConversationController extends Controller
                 '=',
                 'boarding_house_rooms.boarding_house_id'
             )
-            ->join('users as linked_students', 'linked_students.id', '=', 'tenants.user_id')
+            ->join(
+                'users as linked_students',
+                'linked_students.id',
+                '=',
+                'tenants.user_id'
+            )
             ->where('tenants.owner_id', $user->id)
             ->whereNotNull('tenants.user_id')
             ->where('linked_students.role', 'student')
@@ -96,48 +120,33 @@ abstract class ConversationController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
-    {
-        $user = $this->authenticatedParticipant($request);
-        if ($this->participantRole() === 'owner') {
-            $validated = $request->validate([
-                'tenant_id' => ['required', 'integer', 'exists:tenants,id'],
-                'boarding_house_id' => ['required', 'integer', 'exists:boarding_houses,id'],
-            ]);
-            $tenant = Tenant::query()
-                ->where('owner_id', $user->id)
-                ->whereNotNull('user_id')
-                ->whereHas('student', fn (Builder $query) =>
-                    $query->where('role', 'student')
-                )
-                ->findOrFail($validated['tenant_id']);
-            $boardingHouse = Boardinghouse::query()
-                ->where('owner_id', $user->id)
-                ->findOrFail($validated['boarding_house_id']);
-        } else {
-            $validated = $request->validate([
-                'boarding_house_id' => ['required', 'integer', 'exists:boarding_houses,id'],
-            ]);
-            $boardingHouse = Boardinghouse::query()
-                ->findOrFail($validated['boarding_house_id']);
-            $tenant = Tenant::query()
-                ->where('user_id', $user->id)
-                ->where('owner_id', $boardingHouse->owner_id)
-                ->whereHas('student', fn (Builder $query) =>
-                    $query->where('role', 'student')
-                )
-                ->whereHas(
-                    'assignments',
-                    fn (Builder $assignmentQuery) => $assignmentQuery->whereHas(
-                        'boardingHouseRoom',
-                        fn (Builder $roomQuery) => $roomQuery->where(
-                            'boarding_house_id',
-                            $boardingHouse->id
-                        )
-                    )
-                )
-                ->firstOrFail();
-        }
+   
+public function store(Request $request): JsonResponse
+{
+    $user = $this->authenticatedParticipant($request);
+
+    if ($this->participantRole() === 'owner') {
+        $validated = $request->validate([
+            'tenant_id' => ['required', 'integer', 'exists:tenants,id'],
+            'boarding_house_id' => [
+                'required',
+                'integer',
+                'exists:boarding_houses,id',
+            ],
+        ]);
+
+        $tenant = Tenant::query()
+            ->where('owner_id', $user->id)
+            ->whereNotNull('user_id')
+            ->whereHas(
+                'student',
+                fn (Builder $query) => $query->where('role', 'student')
+            )
+            ->findOrFail($validated['tenant_id']);
+
+        $boardingHouse = Boardinghouse::query()
+            ->where('owner_id', $user->id)
+            ->findOrFail($validated['boarding_house_id']);
 
         $hasAssignment = $tenant->assignments()
             ->whereHas(
@@ -148,35 +157,132 @@ abstract class ConversationController extends Controller
                 )
             )
             ->exists();
+
         abort_unless($hasAssignment, 404);
 
         $conversation = Conversation::query()->firstOrCreate([
-            'owner_id' => $tenant->owner_id,
+            'owner_id' => $user->id,
             'tenant_id' => $tenant->id,
             'boarding_house_id' => $boardingHouse->id,
         ]);
-        $conversation->load([
-            'tenant:id,user_id,full_name',
-            'boardingHouse:id,name',
+    } else {
+        $validated = $request->validate([
+            'boarding_house_id' => [
+                'required',
+                'integer',
+                'exists:boarding_houses,id',
+            ],
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => $conversation->wasRecentlyCreated
-                ? 'Conversation created.'
-                : 'Conversation already exists.',
-            'data' => $this->presentConversation($conversation),
-        ], $conversation->wasRecentlyCreated ? 201 : 200);
+        $boardingHouse = Boardinghouse::query()
+            ->where('status', 'approved')
+            ->findOrFail($validated['boarding_house_id']);
+
+        abort_if(
+            $boardingHouse->owner_id === $user->id,
+            403,
+            'You cannot start a conversation with yourself.'
+        );
+
+        // Check whether this student is already a tenant
+        // assigned to this particular boarding house.
+        $tenant = Tenant::query()
+            ->where('user_id', $user->id)
+            ->where('owner_id', $boardingHouse->owner_id)
+            ->whereHas(
+                'assignments',
+                fn (Builder $assignmentQuery) =>
+                    $assignmentQuery->whereHas(
+                        'boardingHouseRoom',
+                        fn (Builder $roomQuery) =>
+                            $roomQuery->where(
+                                'boarding_house_id',
+                                $boardingHouse->id
+                            )
+                    )
+            )
+            ->first();
+
+        // Reuse an existing conversation if this student
+        // has already contacted this boarding house.
+        $conversation = Conversation::query()
+            ->where('student_id', $user->id)
+            ->where('boarding_house_id', $boardingHouse->id)
+            ->first();
+
+        if ($conversation) {
+            // If the student has since become a tenant,
+            // link the existing inquiry to their tenant record.
+            if ($tenant && $conversation->tenant_id === null) {
+                $conversation->update([
+                    'tenant_id' => $tenant->id,
+                ]);
+            }
+        } elseif ($tenant) {
+            // Check whether the owner already created
+            // a conversation for this actual tenant.
+            $conversation = Conversation::query()
+                ->where('owner_id', $boardingHouse->owner_id)
+                ->where('tenant_id', $tenant->id)
+                ->where('boarding_house_id', $boardingHouse->id)
+                ->first();
+
+            if ($conversation) {
+                $conversation->update([
+                    'student_id' => $user->id,
+                ]);
+            } else {
+                $conversation = Conversation::query()->create([
+                    'owner_id' => $boardingHouse->owner_id,
+                    'student_id' => $user->id,
+                    'tenant_id' => $tenant->id,
+                    'boarding_house_id' => $boardingHouse->id,
+                ]);
+            }
+        } else {
+            // Prospective student: create an inquiry.
+            // No tenant record or room assignment is required.
+            $conversation = Conversation::query()->create([
+                'owner_id' => $boardingHouse->owner_id,
+                'student_id' => $user->id,
+                'tenant_id' => null,
+                'boarding_house_id' => $boardingHouse->id,
+            ]);
+        }
     }
 
-    public function show(Request $request, Conversation $conversation): JsonResponse
-    {
-        $conversation = $this->authorizedConversation($request, $conversation);
+    $conversation->load([
+        'tenant:id,user_id,full_name',
+        'student:id,name,role',
+        'boardingHouse:id,name',
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => $conversation->wasRecentlyCreated
+            ? 'Conversation created.'
+            : 'Conversation already exists.',
+        'data' => $this->presentConversation($conversation),
+    ], $conversation->wasRecentlyCreated ? 201 : 200);
+}
+
+
+    public function show(
+        Request $request,
+        Conversation $conversation
+    ): JsonResponse {
+        $conversation = $this->authorizedConversation(
+            $request,
+            $conversation
+        );
+
         $conversation->load([
             'tenant:id,user_id,full_name',
+            'student:id,name,role',
             'boardingHouse:id,name',
             'latestMessage.sender:id,name,role',
         ]);
+
         $conversation->loadCount([
             'messages as unread_count' => fn (Builder $query) => $query
                 ->whereNull('read_at')
@@ -189,12 +295,19 @@ abstract class ConversationController extends Controller
         ]);
     }
 
-    public function messages(Request $request, Conversation $conversation): JsonResponse
-    {
-        $conversation = $this->authorizedConversation($request, $conversation);
+    public function messages(
+        Request $request,
+        Conversation $conversation
+    ): JsonResponse {
+        $conversation = $this->authorizedConversation(
+            $request,
+            $conversation
+        );
+
         $validated = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
+
         $messages = $conversation->messages()
             ->with([
                 'sender:id,name,role',
@@ -202,12 +315,14 @@ abstract class ConversationController extends Controller
             ])
             ->orderByDesc('id')
             ->paginate($validated['per_page'] ?? 30);
+
         $messages->setCollection(
             $messages->getCollection()
                 ->reverse()
                 ->values()
-                ->map(fn (Message $message): array =>
-                    $this->presentMessage($message, $conversation)
+                ->map(
+                    fn (Message $message): array =>
+                        $this->presentMessage($message, $conversation)
                 )
         );
 
@@ -217,9 +332,15 @@ abstract class ConversationController extends Controller
         ]);
     }
 
-    public function send(Request $request, Conversation $conversation): JsonResponse
-    {
-        $conversation = $this->authorizedConversation($request, $conversation);
+    public function send(
+        Request $request,
+        Conversation $conversation
+    ): JsonResponse {
+        $conversation = $this->authorizedConversation(
+            $request,
+            $conversation
+        );
+
         $validated = $request->validate([
             'body' => ['nullable', 'string', 'max:5000'],
             'attachments' => ['sometimes', 'array', 'max:5'],
@@ -229,15 +350,20 @@ abstract class ConversationController extends Controller
                 'max:10240',
             ],
         ]);
+
         $body = trim($validated['body'] ?? '');
         $files = $validated['attachments'] ?? [];
+
         if ($body === '' && count($files) === 0) {
             throw ValidationException::withMessages([
-                'body' => ['Write a message or attach at least one file.'],
+                'body' => [
+                    'Write a message or attach at least one file.',
+                ],
             ]);
         }
 
         $storedPaths = [];
+
         try {
             $message = DB::transaction(function () use (
                 $conversation,
@@ -250,23 +376,36 @@ abstract class ConversationController extends Controller
                     'sender_id' => $request->user()->id,
                     'body' => $body === '' ? null : $body,
                 ]);
+
                 foreach ($files as $file) {
-                    $path = Storage::disk('local')->putFile('message-attachments', $file);
+                    $path = Storage::disk('local')->putFile(
+                        'message-attachments',
+                        $file
+                    );
+
                     if (! is_string($path)) {
-                        throw new RuntimeException('A message attachment could not be stored.');
+                        throw new RuntimeException(
+                            'A message attachment could not be stored.'
+                        );
                     }
+
                     $storedPaths[] = $path;
+
                     $message->attachments()->create([
-                        'original_filename' => basename(str_replace(
-                            '\\',
-                            '/',
-                            $file->getClientOriginalName()
-                        )),
+                        'original_filename' => basename(
+                            str_replace(
+                                '\\',
+                                '/',
+                                $file->getClientOriginalName()
+                            )
+                        ),
                         'stored_path' => $path,
-                        'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
+                        'mime_type' => $file->getMimeType()
+                            ?? 'application/octet-stream',
                         'file_size' => $file->getSize(),
                     ]);
                 }
+
                 $conversation->touch();
 
                 return $message->load([
@@ -278,6 +417,7 @@ abstract class ConversationController extends Controller
             if ($storedPaths !== []) {
                 Storage::disk('local')->delete($storedPaths);
             }
+
             throw $exception;
         }
 
@@ -288,13 +428,21 @@ abstract class ConversationController extends Controller
         ], 201);
     }
 
-    public function markRead(Request $request, Conversation $conversation): JsonResponse
-    {
-        $conversation = $this->authorizedConversation($request, $conversation);
+    public function markRead(
+        Request $request,
+        Conversation $conversation
+    ): JsonResponse {
+        $conversation = $this->authorizedConversation(
+            $request,
+            $conversation
+        );
+
         $markedCount = $conversation->messages()
             ->where('sender_id', '!=', $request->user()->id)
             ->whereNull('read_at')
-            ->update(['read_at' => now(config('app.timezone', 'UTC'))]);
+            ->update([
+                'read_at' => now(config('app.timezone', 'UTC')),
+            ]);
 
         return response()->json([
             'success' => true,
@@ -302,121 +450,197 @@ abstract class ConversationController extends Controller
         ]);
     }
 
-    public function unreadCount(Request $request): JsonResponse
-    {
-        $user = $this->authenticatedParticipant($request);
-        $unreadMessages = Message::query()
-            ->whereNull('read_at')
-            ->where('sender_id', '!=', $user->id)
-            ->whereHas('conversation', function (Builder $query) use ($user): void {
-                if ($this->participantRole() === 'owner') {
-                    $query->where('owner_id', $user->id);
-                    $query->whereHas(
-                        'tenant',
-                        fn (Builder $tenantQuery) => $tenantQuery->where('owner_id', $user->id)
-                    );
-                    $query->whereHas(
-                        'boardingHouse',
-                        fn (Builder $houseQuery) => $houseQuery->where(
-                            'owner_id',
-                            $user->id
-                        )
-                    );
+    
+public function unreadCount(Request $request): JsonResponse
+{
+    $user = $this->authenticatedParticipant($request);
 
-                    return;
-                }
+    $conversationIds = $this->participantConversations($user)
+        ->select('conversations.id');
 
-                $query->whereHas(
-                    'tenant',
-                    fn (Builder $tenantQuery) => $tenantQuery
-                        ->where('user_id', $user->id)
-                        ->whereColumn('tenants.owner_id', 'conversations.owner_id')
-                )->whereHas(
-                    'boardingHouse',
-                    fn (Builder $houseQuery) => $houseQuery->whereColumn(
-                        'boarding_houses.owner_id',
-                        'conversations.owner_id'
-                    )
-                );
-            })
-            ->count();
+    $unreadMessages = Message::query()
+        ->whereNull('read_at')
+        ->where('sender_id', '!=', $user->id)
+        ->whereHas(
+            'conversation',
+            fn (Builder $query) =>
+                $query->whereIn('conversations.id', $conversationIds)
+        )
+        ->count();
 
-        return response()->json([
-            'success' => true,
-            'data' => ['unread_count' => $unreadMessages],
-        ]);
-    }
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'unread_count' => $unreadMessages,
+        ],
+    ]);
+}
+
 
     public function attachment(
         Request $request,
         Conversation $conversation,
         MessageAttachment $attachment
-    ): StreamedResponse {
-        $conversation = $this->authorizedConversation($request, $conversation);
+    ): Response {
+        $conversation = $this->authorizedConversation(
+            $request,
+            $conversation
+        );
+
         $attachment = MessageAttachment::query()
             ->whereHas(
                 'message',
-                fn (Builder $query) => $query->where('conversation_id', $conversation->id)
+                fn (Builder $query) =>
+                    $query->where(
+                        'conversation_id',
+                        $conversation->id
+                    )
             )
             ->findOrFail($attachment->id);
-        abort_unless(Storage::disk('local')->exists($attachment->stored_path), 404);
 
-        $filename = basename(str_replace('\\', '/', $attachment->original_filename));
+        $disk = Storage::disk('local');
+
+        abort_unless(
+            $disk->exists($attachment->stored_path),
+            404,
+            'Attachment file not found.'
+        );
+
+        $filePath = $disk->path($attachment->stored_path);
+
+        abort_unless(
+            is_file($filePath) && is_readable($filePath),
+            404,
+            'Attachment file is not readable.'
+        );
+
+        $filename = basename(str_replace(
+            '\\',
+            '/',
+            $attachment->original_filename
+        ));
+
+        $mimeType = $attachment->mime_type
+            ?: mime_content_type($filePath)
+            ?: 'application/octet-stream';
+
         if ($request->boolean('download')) {
-            return Storage::disk('local')->download(
-                $attachment->stored_path,
+            return response()->download(
+                $filePath,
                 $filename,
-                ['Content-Type' => $attachment->mime_type]
+                [
+                    'Content-Type' => $mimeType,
+                    'X-Content-Type-Options' => 'nosniff',
+                ]
             );
         }
 
-        return Storage::disk('local')->response(
-            $attachment->stored_path,
-            $filename,
+        return response()->file(
+            $filePath,
             [
-                'Content-Type' => $attachment->mime_type,
+                'Content-Type' => $mimeType,
+                'Content-Disposition' => 'inline; filename="' .
+                    addcslashes($filename, '"\\') . '"',
                 'X-Content-Type-Options' => 'nosniff',
-            ],
-            'inline'
+                'Cache-Control' => 'private, no-cache, no-store, must-revalidate',
+            ]
         );
     }
 
     private function authenticatedParticipant(Request $request): User
     {
-        abort_unless($request->user()?->role === $this->participantRole(), 403);
+        abort_unless(
+            $request->user()?->role === $this->participantRole(),
+            403
+        );
 
         return $request->user();
     }
 
-    private function participantConversations(User $user): Builder
-    {
-        $query = Conversation::query();
-        if ($this->participantRole() === 'owner') {
-            return $query
-                ->where('owner_id', $user->id)
-                ->whereHas(
-                    'tenant',
-                    fn (Builder $tenantQuery) => $tenantQuery->where('owner_id', $user->id)
-                )
-                ->whereHas(
-                    'boardingHouse',
-                    fn (Builder $houseQuery) => $houseQuery->where('owner_id', $user->id)
-                );
-        }
+    /**
+     * Returns conversations belonging to the authenticated participant.
+     *
+     * Students are identified through their tenant record.
+     * Their tenant must be assigned to the exact boarding house
+     * referenced by the conversation.
+     */
+    
+private function participantConversations(User $user): Builder
+{
+    $query = Conversation::query();
 
-        return $query->whereHas(
-            'tenant',
-            fn (Builder $tenantQuery) => $tenantQuery
-                ->where('user_id', $user->id)
-                ->whereColumn('tenants.owner_id', 'conversations.owner_id')
-        )->whereHas(
-            'boardingHouse',
-            fn (Builder $houseQuery) => $houseQuery->whereColumn(
-                'boarding_houses.owner_id',
-                'conversations.owner_id'
+    if ($this->participantRole() === 'owner') {
+        return $query
+            ->where('owner_id', $user->id)
+            ->whereHas(
+                'boardingHouse',
+                fn (Builder $houseQuery) =>
+                    $houseQuery->where('owner_id', $user->id)
             )
-        );
+            ->where(function (Builder $participantQuery) use ($user) {
+                $participantQuery
+                    ->whereHas(
+                        'tenant',
+                        fn (Builder $tenantQuery) =>
+                            $tenantQuery->where('owner_id', $user->id)
+                    )
+                    ->orWhereHas(
+                        'student',
+                        fn (Builder $studentQuery) =>
+                            $studentQuery->where('role', 'student')
+                    );
+            });
     }
+
+    return $query
+        ->where(function (Builder $participantQuery) use ($user) {
+
+            // Prospective student inquiries.
+            $participantQuery->where(function (Builder $inquiryQuery) use ($user) {
+                $inquiryQuery
+                    ->where('student_id', $user->id)
+                    ->whereNull('tenant_id');
+            })
+
+            // Actual tenant conversations.
+            ->orWhere(function (Builder $tenantConversationQuery) use ($user) {
+                $tenantConversationQuery
+                    ->whereNotNull('tenant_id')
+                    ->whereHas(
+                        'tenant',
+                        function (Builder $tenantQuery) use ($user) {
+                            $tenantQuery
+                                ->where('user_id', $user->id)
+                                ->whereColumn(
+                                    'tenants.owner_id',
+                                    'conversations.owner_id'
+                                )
+                                ->whereHas(
+                                    'assignments',
+                                    fn (Builder $assignmentQuery) =>
+                                        $assignmentQuery->whereHas(
+                                            'boardingHouseRoom',
+                                            fn (Builder $roomQuery) =>
+                                                $roomQuery->whereColumn(
+                                                    'boarding_house_rooms.boarding_house_id',
+                                                    'conversations.boarding_house_id'
+                                                )
+                                        )
+                                );
+                        }
+                    );
+            });
+        })
+        ->whereHas(
+            'boardingHouse',
+            fn (Builder $houseQuery) =>
+                $houseQuery->whereColumn(
+                    'boarding_houses.owner_id',
+                    'conversations.owner_id'
+                )
+        );
+}
+
 
     private function authorizedConversation(
         Request $request,
@@ -429,34 +653,44 @@ abstract class ConversationController extends Controller
             ->firstOrFail();
     }
 
-    private function presentConversation(Conversation $conversation): array
-    {
+    private function presentConversation(
+        Conversation $conversation
+    ): array {
         $latestMessage = $conversation->latestMessage;
 
         return [
             'id' => $conversation->id,
             'owner_id' => $conversation->owner_id,
+            'student_id' => $conversation->student_id,
             'tenant_id' => $conversation->tenant_id,
             'boarding_house_id' => $conversation->boarding_house_id,
+            'student' => $conversation->student,
             'tenant' => $conversation->tenant,
             'boarding_house' => $conversation->boardingHouse,
             'latest_message' => $latestMessage
                 ? [
                     'id' => $latestMessage->id,
                     'body' => $latestMessage->body,
-                    'sender' => $this->presentSender($latestMessage->sender),
+                    'sender' => $this->presentSender(
+                        $latestMessage->sender
+                    ),
                     'created_at' => $latestMessage->created_at,
                 ]
                 : null,
-            'unread_count' => (int) ($conversation->unread_count ?? 0),
+            'unread_count' => (int) (
+                $conversation->unread_count ?? 0
+            ),
             'created_at' => $conversation->created_at,
             'updated_at' => $conversation->updated_at,
         ];
     }
 
-    private function presentMessage(Message $message, Conversation $conversation): array
-    {
-        $routeName = $this->participantRole().'.conversations.attachments.show';
+    private function presentMessage(
+        Message $message,
+        Conversation $conversation
+    ): array {
+        $routeName = $this->participantRole()
+            . '.conversations.attachments.show';
 
         return [
             'id' => $message->id,

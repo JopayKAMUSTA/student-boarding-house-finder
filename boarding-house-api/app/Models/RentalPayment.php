@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $rental_bill_id
  * @property string $amount
- * @property \Illuminate\Support\Carbon $payment_date
+ * @property \Illuminate\Support\Carbon|null $payment_date
  * @property \Illuminate\Support\Carbon|null $voided_at
  */
 class RentalPayment extends Model
@@ -76,7 +76,11 @@ class RentalPayment extends Model
 
     public function getIsFutureDatedAttribute(): bool
     {
-        return $this->status === 'approved' && $this->payment_date->toDateString() >
+        if ($this->status !== 'approved' || !$this->payment_date) {
+            return false;
+        }
+
+        return $this->payment_date->toDateString() >
             now(config('app.timezone', 'UTC'))->toDateString();
     }
 

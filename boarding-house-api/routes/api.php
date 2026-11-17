@@ -1,4 +1,4 @@
-    <?php
+﻿    <?php
 
     use App\Models\User;
     use Illuminate\Http\Request;
@@ -24,6 +24,7 @@
     use App\Http\Controllers\StudentRentalBillController;
     use App\Http\Controllers\StudentBoardingHousePaymentMethodController;
     use App\Http\Controllers\StudentConversationController;
+    use App\Http\Controllers\StudentNotificationController;
     use App\Http\Controllers\OwnerTenantController;
     use App\Http\Controllers\AdminDashboardController;
     use App\Http\Controllers\OwnerProfileController;
@@ -171,21 +172,20 @@
         'login',
     ]);
 
-    /*
-    |--------------------------------------------------------------------------
-    | ADMIN ROUTES
-    |--------------------------------------------------------------------------
-    */
+   /*
+|--------------------------------------------------------------------------
+| ADMIN ROUTES
+|--------------------------------------------------------------------------
+*/
 
-    Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
 
-        // ADMIN DASHBOARD
-        Route::get('/dashboard', [
-            AdminDashboardController::class,
-            'index',
-        ]);
+    // ADMIN DASHBOARD
+    Route::get('/dashboard', [
+        AdminDashboardController::class,
+        'index',
+    ]);
 
- // ADMIN OWNER MANAGEMENT
     // ADMIN OWNER MANAGEMENT
     Route::get('/owners', [
         AdminOwnerController::class,
@@ -207,31 +207,42 @@
         'updateVerification',
     ]);
 
-        Route::get('/boarding-houses/{boardingHouse}', [
+    // ADMIN BOARDING HOUSE MANAGEMENT
+
+    // List all boarding houses
+    Route::get('/boarding-houses', [
+        AdminBoardinghouseController::class,
+        'index',
+    ]);
+
+    // View one boarding house
+    Route::get('/boarding-houses/{boardingHouse}', [
+        AdminBoardinghouseController::class,
+        'show',
+    ]);
+
+    // Approve, reject, or update boarding-house status
+    Route::patch('/boarding-houses/{boardingHouse}/status', [
+        AdminBoardinghouseController::class,
+        'updateStatus',
+    ]);
+
+    // View room images
+    Route::get(
+        '/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}',
+        [
             AdminBoardinghouseController::class,
-            'show',
-        ]);
+            'showImage',
+        ]
+    )->name('admin.boarding-houses.rooms.images.show');
 
-        Route::patch('/boarding-houses/{boardingHouse}/status', [
-            AdminBoardinghouseController::class,
-            'updateStatus',
-        ]);
+    // ADMIN REPORTS
+    Route::get('/reports', [
+        AdminReportsController::class,
+        'index',
+    ]);
 
-        Route::get(
-            '/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}',
-            [
-                AdminBoardinghouseController::class,
-                'showImage',
-            ]
-        )->name('admin.boarding-houses.rooms.images.show');
-
-        // ADMIN REPORTS
-        Route::get('/reports', [
-            AdminReportsController::class,
-            'index',
-        ]);
-
-    });
+});
     /*
     |--------------------------------------------------------------------------
     | ADMIN USER MANAGEMENT
@@ -603,6 +614,22 @@ if (!$emailVerified) {
             'unreadCount',
         ]);
 
+                // Student notifications
+        Route::get('/student/notifications', [
+            StudentNotificationController::class,
+            'index',
+        ]);
+
+        Route::patch('/student/notifications/{id}/read', [
+            StudentNotificationController::class,
+            'markAsRead',
+        ]);
+
+        Route::patch('/student/notifications/read-all', [
+            StudentNotificationController::class,
+            'markAllAsRead',
+        ]);
+
         Route::get('/student/conversations', [
             StudentConversationController::class,
             'index',
@@ -638,26 +665,32 @@ if (!$emailVerified) {
             [StudentConversationController::class, 'attachment']
         )->name('student.conversations.attachments.show');
 
+      
+        // Student rental bills
         Route::get('/student/rental-bills', [
             StudentRentalBillController::class,
             'index',
         ]);
 
+        // Student submits payment proof
         Route::post('/student/rental-bills/{bill}/payment-submissions', [
             StudentRentalPaymentController::class,
             'submit',
         ]);
 
+        // Student payment methods
         Route::get('/student/rental-bills/{bill}/payment-methods', [
             StudentBoardingHousePaymentMethodController::class,
             'index',
         ]);
 
+        // Payment method QR code
         Route::get('/student/rental-bills/{bill}/payment-methods/{paymentMethod}/qr', [
             StudentBoardingHousePaymentMethodController::class,
             'showQr',
         ])->name('student.rental-bills.payment-methods.qr');
 
+        // View rental payment proof
         Route::get('/rental-payments/{payment}/proof', [
             OwnerRentalPaymentReviewController::class,
             'proof',
@@ -729,459 +762,552 @@ if (!$emailVerified) {
     |--------------------------------------------------------------------------
     */
 
-    Route::get('/boarding-houses', function (Request $request) {
+  
+Route::get('/boarding-houses', function (Request $request) {
 
-        $request->validate([
-            'city' => ['nullable', 'string', 'max:100'],
-            'room_type' => ['nullable', 'string', 'max:100'],
-            'max_rent' => ['nullable', 'numeric', 'min:0'],
-        ]);
+    $request->validate([
+        'city' => ['nullable', 'string', 'max:100'],
+        'room_type' => ['nullable', 'string', 'max:100'],
+        'max_rent' => ['nullable', 'numeric', 'min:0'],
+    ]);
 
-        $boardingHouses = Boardinghouse::query()
-            ->where('status', 'approved')
-            ->when($request->filled('city'), function ($query) use ($request) {
-                $query->where(
-                    'city',
-                    'like',
-                    '%' . $request->city . '%'
-                );
-            })
-            ->when($request->filled('room_type'), function ($query) use ($request) {
-                $query->where('room_type', $request->room_type);
-            })
-            ->when($request->filled('max_rent'), function ($query) use ($request) {
-                $query->where('monthly_rent', '<=', $request->max_rent);
-            })
-            ->orderBy('monthly_rent')
-            ->paginate(10);
+    $boardingHouses = Boardinghouse::query()
+        ->with(['rooms.images'])
+        ->where('status', 'approved')
+        ->when($request->filled('city'), function ($query) use ($request) {
+            $query->where(
+                'city',
+                'like',
+                '%' . $request->city . '%'
+            );
+        })
+        ->when($request->filled('room_type'), function ($query) use ($request) {
+            $query->where('room_type', $request->room_type);
+        })
+        ->when($request->filled('max_rent'), function ($query) use ($request) {
+            $query->where('monthly_rent', '<=', $request->max_rent);
+        })
+        ->orderBy('monthly_rent')
+        ->paginate(10);
 
-        return response()->json([
-            'success' => true,
-            'data' => $boardingHouses,
-        ]);
+    $boardingHouses->getCollection()->transform(function ($boardingHouse) use ($request) {
+
+        $images = $boardingHouse->rooms
+            ->flatMap(function ($room) use ($request) {
+
+                return $room->images->map(function ($image) use ($request, $room) {
+                    return [
+                        'id' => $image->id,
+                        'room_id' => $room->id,
+                        'url' => $request->getSchemeAndHttpHost()
+                            . '/storage/'
+                            . ltrim($image->image_path, '/'),
+                    ];
+                });
+
+            })
+            ->values();
+
+        $boardingHouse->setAttribute('images', $images);
+
+        $boardingHouse->setAttribute(
+            'cover_image_url',
+            $images->first()['url'] ?? null
+        );
+
+        $boardingHouse->setAttribute(
+            'image_url',
+            $images->first()['url'] ?? null
+        );
+
+        $boardingHouse->makeHidden('rooms');
+
+        return $boardingHouse;
     });
 
-    Route::get('/boarding-houses/{id}', function ($id) {
+    return response()->json([
+        'success' => true,
+        'data' => $boardingHouses,
+    ]);
+});
 
-        $boardingHouse = Boardinghouse::query()
-            ->where('status', 'approved')
-            ->find($id);
 
-        if (!$boardingHouse) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Boarding house not found.',
-            ], 404);
-        }
+    
+Route::get('/boarding-houses/{id}', function (Request $request, $id) {
 
+    $boardingHouse = Boardinghouse::query()
+        ->with(['rooms.images'])
+        ->where('status', 'approved')
+        ->find($id);
+
+    if (!$boardingHouse) {
         return response()->json([
-            'success' => true,
-            'data' => $boardingHouse,
-        ]);
+            'success' => false,
+            'message' => 'Boarding house not found.',
+        ], 404);
+    }
+
+    // Process every room and its uploaded images.
+    $rooms = $boardingHouse->rooms->map(function ($room) use ($request) {
+
+        $roomImages = $room->images->map(function ($image) use ($request, $room) {
+            return [
+                'id' => $image->id,
+                'room_id' => $room->id,
+                'url' => $request->getSchemeAndHttpHost()
+                    . '/storage/'
+                    . ltrim($image->image_path, '/'),
+            ];
+        })->values();
+
+        $room->setRelation('images', $roomImages);
+
+        return $room;
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | OWNER ROUTES
-    |--------------------------------------------------------------------------
-    */
+    // Attach processed rooms to the boarding house.
+    $boardingHouse->setRelation('rooms', $rooms);
 
-    Route::middleware('auth:sanctum')
-        ->prefix('owner')
-        ->group(function () {
+    // Collect all room images for the main photo gallery.
+    $allImages = $rooms
+        ->flatMap(function ($room) {
+            return $room->images;
+        })
+        ->values();
+
+    $boardingHouse->setAttribute('images', $allImages);
+
+    $boardingHouse->setAttribute(
+        'cover_image_url',
+        $allImages->first()['url'] ?? null
+    );
+
+    $boardingHouse->setAttribute(
+        'image_url',
+        $allImages->first()['url'] ?? null
+    );
+
+    return response()->json([
+        'success' => true,
+        'data' => $boardingHouse,
+    ]);
+});
+
+
+  
+/*
+|--------------------------------------------------------------------------
+| OWNER ROUTES
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth:sanctum')
+    ->prefix('owner')
+    ->group(function () {
 
         // Owner Profile
-    Route::get('/profile', [
-        OwnerProfileController::class,
-        'show',
-    ]);
+        Route::get('/profile', [
+            OwnerProfileController::class,
+            'show',
+        ]);
 
-    Route::post('/profile/identity-documents', [
-    OwnerProfileController::class,
-    'submitIdentityDocuments',
-]);
+        Route::post('/profile/identity-documents', [
+            OwnerProfileController::class,
+            'submitIdentityDocuments',
+        ]);
 
-    Route::put('/profile/password', [
-    OwnerProfileController::class,
-    'changePassword',
-]);
+        Route::put('/profile/password', [
+            OwnerProfileController::class,
+            'changePassword',
+        ]);
 
-    Route::put('/profile', [
-        OwnerProfileController::class,
-        'update',
-    ]);
+        Route::put('/profile', [
+            OwnerProfileController::class,
+            'update',
+        ]);
 
-            // Owner-tenant messaging
-            Route::get('/conversations/recipients', [
-                OwnerConversationController::class,
-                'recipients',
-            ]);
+        // Owner-tenant messaging
+        Route::get('/conversations/recipients', [
+            OwnerConversationController::class,
+            'recipients',
+        ]);
 
-            Route::get('/conversations/unread-count', [
-                OwnerConversationController::class,
-                'unreadCount',
-            ]);
+        Route::get('/conversations/unread-count', [
+            OwnerConversationController::class,
+            'unreadCount',
+        ]);
 
-            Route::get('/conversations', [
-                OwnerConversationController::class,
-                'index',
-            ]);
+        Route::get('/conversations', [
+            OwnerConversationController::class,
+            'index',
+        ]);
 
-            Route::post('/conversations', [
-                OwnerConversationController::class,
-                'store',
-            ]);
+        Route::post('/conversations', [
+            OwnerConversationController::class,
+            'store',
+        ]);
 
-            Route::get('/conversations/{conversation}', [
-                OwnerConversationController::class,
-                'show',
-            ]);
+        Route::get('/conversations/{conversation}', [
+            OwnerConversationController::class,
+            'show',
+        ]);
 
-            Route::get('/conversations/{conversation}/messages', [
-                OwnerConversationController::class,
-                'messages',
-            ]);
+        Route::get('/conversations/{conversation}/messages', [
+            OwnerConversationController::class,
+            'messages',
+        ]);
 
-            Route::post('/conversations/{conversation}/messages', [
-                OwnerConversationController::class,
-                'send',
-            ]);
+        Route::post('/conversations/{conversation}/messages', [
+            OwnerConversationController::class,
+            'send',
+        ]);
 
-            Route::post('/conversations/{conversation}/read', [
-                OwnerConversationController::class,
-                'markRead',
-            ]);
+        Route::post('/conversations/{conversation}/read', [
+            OwnerConversationController::class,
+            'markRead',
+        ]);
 
-            Route::get(
-                '/conversations/{conversation}/attachments/{attachment}',
-                [OwnerConversationController::class, 'attachment']
-            )->name('owner.conversations.attachments.show');
+        Route::get(
+            '/conversations/{conversation}/attachments/{attachment}',
+            [OwnerConversationController::class, 'attachment']
+        )->name('owner.conversations.attachments.show');
 
-            // Tenant management
-            Route::get('/tenants', [
-                OwnerTenantController::class,
-                'index',
-            ]);
+        // Tenant management
+        Route::get('/students', [
+            OwnerTenantController::class,
+            'students',
+        ]);
 
-            Route::post('/tenants', [
-                OwnerTenantController::class,
-                'store',
-            ]);
+        Route::get('/tenants', [
+            OwnerTenantController::class,
+            'index',
+        ]);
 
-            Route::get('/tenants/{tenant}', [
-                OwnerTenantController::class,
-                'show',
-            ]);
+        Route::post('/tenants', [
+            OwnerTenantController::class,
+            'store',
+        ]);
 
-            Route::put('/tenants/{tenant}', [
-                OwnerTenantController::class,
-                'update',
-            ]);
+        Route::get('/tenants/{tenant}', [
+            OwnerTenantController::class,
+            'show',
+        ]);
 
-            Route::post('/tenants/{tenant}/assignments', [
-                OwnerTenantController::class,
-                'assign',
-            ]);
+        Route::put('/tenants/{tenant}', [
+            OwnerTenantController::class,
+            'update',
+        ]);
 
-            Route::post('/tenants/{tenant}/transfer', [
-                OwnerTenantController::class,
-                'transfer',
-            ]);
+        Route::post('/tenants/{tenant}/assignments', [
+            OwnerTenantController::class,
+            'assign',
+        ]);
 
-            Route::patch('/tenants/{tenant}/move-out', [
-                OwnerTenantController::class,
-                'moveOut',
-            ]);
+        Route::post('/tenants/{tenant}/transfer', [
+            OwnerTenantController::class,
+            'transfer',
+        ]);
 
-            // Rental bills
-            Route::get('/rental-bills', [
-                OwnerRentalBillController::class,
-                'index',
-            ]);
+        Route::patch('/tenants/{tenant}/move-out', [
+            OwnerTenantController::class,
+            'moveOut',
+        ]);
 
-            Route::post('/tenants/{tenant}/rental-bills', [
-                OwnerRentalBillController::class,
-                'store',
-            ]);
+        // Rental bills
+        Route::get('/rental-bills', [
+            OwnerRentalBillController::class,
+            'index',
+        ]);
 
-            Route::get('/rental-bills/generation-status', [
-                OwnerRentalBillController::class,
-                'generationStatus',
-            ]);
+        Route::post('/tenants/{tenant}/rental-bills', [
+            OwnerRentalBillController::class,
+            'store',
+        ]);
 
-            Route::get('/rental-bills/{bill}', [
-                OwnerRentalBillController::class,
-                'show',
-            ]);
+        Route::get('/rental-bills/generation-status', [
+            OwnerRentalBillController::class,
+            'generationStatus',
+        ]);
 
-            Route::post('/rental-bills/{bill}/payments', [
-                OwnerRentalBillController::class,
-                'recordPayment',
-            ]);
+        Route::get('/rental-bills/{bill}', [
+            OwnerRentalBillController::class,
+            'show',
+        ]);
 
-            // Rental payment review
-            Route::get('/rental-payment-submissions', [
-                OwnerRentalPaymentReviewController::class,
-                'index',
-            ]);
+        Route::post('/rental-bills/{bill}/send', [
+            OwnerRentalBillController::class,
+            'send',
+        ]);
 
-            Route::patch('/rental-payments/{payment}/approve', [
-                OwnerRentalPaymentReviewController::class,
-                'approve',
-            ]);
+        Route::post('/rental-bills/{bill}/payments', [
+            OwnerRentalBillController::class,
+            'recordPayment',
+        ]);
 
-            Route::patch('/rental-payments/{payment}/reject', [
-                OwnerRentalPaymentReviewController::class,
-                'reject',
-            ]);
+        // Rental payment review
+        Route::get('/rental-payment-submissions', [
+            OwnerRentalPaymentReviewController::class,
+            'index',
+        ]);
 
-            Route::patch('/rental-payments/{payment}/void', [
-                OwnerRentalBillController::class,
-                'voidPayment',
-            ]);
+        Route::patch('/rental-payments/{payment}/approve', [
+            OwnerRentalPaymentReviewController::class,
+            'approve',
+        ]);
 
-            Route::get('/boarding-houses/{boardingHouse}/payment-methods', [
-                OwnerBoardingHousePaymentMethodController::class,
-                'index',
-            ]);
+        Route::patch('/rental-payments/{payment}/reject', [
+            OwnerRentalPaymentReviewController::class,
+            'reject',
+        ]);
 
-            Route::post('/boarding-houses/{boardingHouse}/payment-methods', [
-                OwnerBoardingHousePaymentMethodController::class,
-                'store',
-            ]);
+        Route::patch('/rental-payments/{payment}/void', [
+            OwnerRentalBillController::class,
+            'voidPayment',
+        ]);
 
-            Route::put('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}', [
-                OwnerBoardingHousePaymentMethodController::class,
-                'update',
-            ]);
+        // Boarding-house payment methods
+        Route::get('/boarding-houses/{boardingHouse}/payment-methods', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'index',
+        ]);
 
-            Route::patch('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}/status', [
-                OwnerBoardingHousePaymentMethodController::class,
-                'updateStatus',
-            ]);
+        Route::post('/boarding-houses/{boardingHouse}/payment-methods', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'store',
+        ]);
 
-            Route::delete('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}', [
-                OwnerBoardingHousePaymentMethodController::class,
-                'destroy',
-            ]);
+        Route::put('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'update',
+        ]);
 
-            Route::get('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}/qr', [
-                OwnerBoardingHousePaymentMethodController::class,
-                'showQr',
-            ])->name('owner.boarding-houses.payment-methods.qr');
+        Route::patch('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}/status', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'updateStatus',
+        ]);
 
-            // Boarding-house room management
-            Route::get('/boarding-houses/{boardingHouse}/rooms', [
-                OwnerBoardingHouseRoomController::class,
-                'index',
-            ]);
+        Route::delete('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'destroy',
+        ]);
 
-            Route::post('/boarding-houses/{boardingHouse}/rooms', [
-                OwnerBoardingHouseRoomController::class,
-                'store',
-            ]);
+        Route::get('/boarding-houses/{boardingHouse}/payment-methods/{paymentMethod}/qr', [
+            OwnerBoardingHousePaymentMethodController::class,
+            'showQr',
+        ])->name('owner.boarding-houses.payment-methods.qr');
 
-            Route::get('/boarding-houses/{boardingHouse}/rooms/{room}', [
-                OwnerBoardingHouseRoomController::class,
-                'show',
-            ]);
+        // Boarding-house room management
+        Route::get('/boarding-houses/{boardingHouse}/rooms', [
+            OwnerBoardingHouseRoomController::class,
+            'index',
+        ]);
 
-            Route::put('/boarding-houses/{boardingHouse}/rooms/{room}', [
-                OwnerBoardingHouseRoomController::class,
-                'update',
-            ]);
+        Route::post('/boarding-houses/{boardingHouse}/rooms', [
+            OwnerBoardingHouseRoomController::class,
+            'store',
+        ]);
 
-            Route::delete('/boarding-houses/{boardingHouse}/rooms/{room}', [
-                OwnerBoardingHouseRoomController::class,
-                'destroy',
-            ]);
+        Route::get('/boarding-houses/{boardingHouse}/rooms/{room}', [
+            OwnerBoardingHouseRoomController::class,
+            'show',
+        ]);
 
-            Route::post('/boarding-houses/{boardingHouse}/rooms/{room}/images', [
-                OwnerBoardingHouseRoomController::class,
-                'uploadImages',
-            ]);
+        Route::put('/boarding-houses/{boardingHouse}/rooms/{room}', [
+            OwnerBoardingHouseRoomController::class,
+            'update',
+        ]);
 
-            Route::delete('/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}', [
-                OwnerBoardingHouseRoomController::class,
-                'destroyImage',
-            ]);
+        Route::delete('/boarding-houses/{boardingHouse}/rooms/{room}', [
+            OwnerBoardingHouseRoomController::class,
+            'destroy',
+        ]);
 
-            Route::get('/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}', [
-                OwnerBoardingHouseRoomController::class,
-                'showImage',
-            ])->name('owner.boarding-houses.rooms.images.show');
+        Route::post('/boarding-houses/{boardingHouse}/rooms/{room}/images', [
+            OwnerBoardingHouseRoomController::class,
+            'uploadImages',
+        ]);
 
-            // Owner boarding-house listings
-            Route::get('/boarding-houses', function (Request $request) {
+        Route::delete('/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}', [
+            OwnerBoardingHouseRoomController::class,
+            'destroyImage',
+        ]);
 
-                if ($request->user()->role !== 'owner') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Only owners can access this feature.',
-                    ], 403);
-                }
+        Route::get('/boarding-houses/{boardingHouse}/rooms/{room}/images/{image}', [
+            OwnerBoardingHouseRoomController::class,
+            'showImage',
+        ])->name('owner.boarding-houses.rooms.images.show');
 
+        // Owner boarding-house listings
+        Route::get('/boarding-houses', function (Request $request) {
+
+            if ($request->user()->role !== 'owner') {
                 return response()->json([
-                    'success' => true,
-                    'data' => Boardinghouse::where(
-                        'owner_id',
-                        $request->user()->id
-                    )->latest()->paginate(10),
-                ]);
-            });
+                    'success' => false,
+                    'message' => 'Only owners can access this feature.',
+                ], 403);
+            }
 
-            Route::post('/boarding-houses', function (Request $request) {
-
-                if ($request->user()->role !== 'owner') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Only owners can create listings.',
-                    ], 403);
-                }
-
-                $validated = $request->validate([
-                    'name' => ['required', 'string', 'max:255'],
-                    'description' => ['nullable', 'string'],
-                    'rules' => ['nullable', 'string', 'max:10000'],
-                    'city' => ['required', 'string', 'max:255'],
-                    'barangay' => ['nullable', 'string', 'max:100'],
-                    'address' => ['required', 'string', 'max:255'],
-                    'monthly_rent' => ['required', 'numeric', 'min:0'],
-                    'security_deposit' => ['nullable', 'numeric', 'min:0'],
-                    'advance_payment' => ['nullable', 'numeric', 'min:0'],
-                    'late_payment_fee' => [
-                        'nullable',
-                        'numeric',
-                        'decimal:0,2',
-                        'min:0',
-                        'max:99999999.99',
-                    ],
-                    'grace_period_days' => ['nullable', 'integer', 'min:0'],
-                    'available_rooms' => ['required', 'integer', 'min:0'],
-                    'total_rooms' => ['required', 'integer', 'min:1'],
-                    'room_type' => ['nullable', 'string', 'max:100'],
-                    'billing_policy' => [
-                        'sometimes',
-                        'required',
-                        'string',
-                        'in:full_monthly,prorated',
-                    ],
-                    'amenities' => ['nullable', 'array'],
-                    'amenities.*' => ['string', 'max:100'],
-                ]);
-
-                if ($validated['available_rooms'] > $validated['total_rooms']) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Available rooms cannot exceed total rooms.',
-                    ], 422);
-                }
-
-                $boardingHouse = Boardinghouse::create([
-                    ...$validated,
-                    'owner_id' => $request->user()->id,
-                    'security_deposit' => $validated['security_deposit'] ?? 0,
-                    'advance_payment' => $validated['advance_payment'] ?? 0,
-                    'billing_policy' => $validated['billing_policy'] ?? 'full_monthly',
-                    'late_payment_fee' => $validated['late_payment_fee'] ?? 0,
-                    'grace_period_days' => $validated['grace_period_days'] ?? 0,
-                    'status' => 'pending',
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Boarding house submitted for admin approval.',
-                    'data' => $boardingHouse,
-                ], 201);
-            });
-
-            // Boarding-house settings
-            Route::patch('/boarding-houses/{boardingHouse}/settings', function (
-                Request $request,
-                Boardinghouse $boardingHouse
-            ) {
-
-                if ($request->user()->role !== 'owner') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Only owners can update boarding-house settings.',
-                    ], 403);
-                }
-
-                abort_unless(
-                    (int) $boardingHouse->owner_id === (int) $request->user()->id,
-                    404
-                );
-
-                $validated = $request->validate([
-                    'late_payment_fee' => [
-                        'sometimes',
-                        'required',
-                        'numeric',
-                        'decimal:0,2',
-                        'min:0',
-                        'max:99999999.99',
-                    ],
-                    'grace_period_days' => [
-                        'sometimes',
-                        'required',
-                        'integer',
-                        'min:0',
-                    ],
-                    'rules' => [
-                        'sometimes',
-                        'nullable',
-                        'string',
-                        'max:10000',
-                    ],
-                ]);
-
-                $boardingHouse->update($validated);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Boarding-house settings updated successfully.',
-                    'data' => $boardingHouse->refresh(),
-                ]);
-            });
-
-            // Billing policy
-            Route::patch('/boarding-houses/{boardingHouse}/billing-policy', function (
-                Request $request,
-                Boardinghouse $boardingHouse
-            ) {
-
-                if ($request->user()->role !== 'owner') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Only owners can update boarding-house billing policies.',
-                    ], 403);
-                }
-
-                abort_unless(
-                    (int) $boardingHouse->owner_id === (int) $request->user()->id,
-                    404
-                );
-
-                $validated = $request->validate([
-                    'billing_policy' => [
-                        'required',
-                        'string',
-                        'in:full_monthly,prorated',
-                    ],
-                ]);
-
-                $boardingHouse->update([
-                    'billing_policy' => $validated['billing_policy'],
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Boarding-house billing policy updated successfully.',
-                    'data' => $boardingHouse->refresh(),
-                ]);
-            });
+            return response()->json([
+                'success' => true,
+                'data' => Boardinghouse::where(
+                    'owner_id',
+                    $request->user()->id
+                )->latest()->paginate(10),
+            ]);
         });
+
+        Route::post('/boarding-houses', function (Request $request) {
+
+            if ($request->user()->role !== 'owner') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only owners can create listings.',
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'description' => ['nullable', 'string'],
+                'rules' => ['nullable', 'string', 'max:10000'],
+                'city' => ['required', 'string', 'max:255'],
+                'barangay' => ['nullable', 'string', 'max:100'],
+                'address' => ['required', 'string', 'max:255'],
+                'monthly_rent' => ['required', 'numeric', 'min:0'],
+                'security_deposit' => ['nullable', 'numeric', 'min:0'],
+                'advance_payment' => ['nullable', 'numeric', 'min:0'],
+                'late_payment_fee' => [
+                    'nullable',
+                    'numeric',
+                    'decimal:0,2',
+                    'min:0',
+                    'max:99999999.99',
+                ],
+                'grace_period_days' => ['nullable', 'integer', 'min:0'],
+                'available_rooms' => ['required', 'integer', 'min:0'],
+                'total_rooms' => ['required', 'integer', 'min:1'],
+                'room_type' => ['nullable', 'string', 'max:100'],
+                'billing_policy' => [
+                    'sometimes',
+                    'required',
+                    'string',
+                    'in:full_monthly,prorated',
+                ],
+                'amenities' => ['nullable', 'array'],
+                'amenities.*' => ['string', 'max:100'],
+            ]);
+
+            if ($validated['available_rooms'] > $validated['total_rooms']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Available rooms cannot exceed total rooms.',
+                ], 422);
+            }
+
+            $boardingHouse = Boardinghouse::create([
+                ...$validated,
+                'owner_id' => $request->user()->id,
+                'security_deposit' => $validated['security_deposit'] ?? 0,
+                'advance_payment' => $validated['advance_payment'] ?? 0,
+                'billing_policy' => $validated['billing_policy'] ?? 'full_monthly',
+                'late_payment_fee' => $validated['late_payment_fee'] ?? 0,
+                'grace_period_days' => $validated['grace_period_days'] ?? 0,
+                'status' => 'pending',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Boarding house submitted for admin approval.',
+                'data' => $boardingHouse,
+            ], 201);
+        });
+
+        // Boarding-house settings
+        Route::patch('/boarding-houses/{boardingHouse}/settings', function (
+            Request $request,
+            Boardinghouse $boardingHouse
+        ) {
+
+            if ($request->user()->role !== 'owner') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only owners can update boarding-house settings.',
+                ], 403);
+            }
+
+            abort_unless(
+                (int) $boardingHouse->owner_id === (int) $request->user()->id,
+                404
+            );
+
+            $validated = $request->validate([
+                'late_payment_fee' => [
+                    'sometimes',
+                    'required',
+                    'numeric',
+                    'decimal:0,2',
+                    'min:0',
+                    'max:99999999.99',
+                ],
+                'grace_period_days' => [
+                    'sometimes',
+                    'required',
+                    'integer',
+                    'min:0',
+                ],
+                'rules' => [
+                    'sometimes',
+                    'nullable',
+                    'string',
+                    'max:10000',
+                ],
+            ]);
+
+            $boardingHouse->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Boarding-house settings updated successfully.',
+                'data' => $boardingHouse->refresh(),
+            ]);
+        });
+
+        // Billing policy
+        Route::patch('/boarding-houses/{boardingHouse}/billing-policy', function (
+            Request $request,
+            Boardinghouse $boardingHouse
+        ) {
+
+            if ($request->user()->role !== 'owner') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only owners can update boarding-house billing policies.',
+                ], 403);
+            }
+
+            abort_unless(
+                (int) $boardingHouse->owner_id === (int) $request->user()->id,
+                404
+            );
+
+            $validated = $request->validate([
+                'billing_policy' => [
+                    'required',
+                    'string',
+                    'in:full_monthly,prorated',
+                ],
+            ]);
+
+            $boardingHouse->update([
+                'billing_policy' => $validated['billing_policy'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Boarding-house billing policy updated successfully.',
+                'data' => $boardingHouse->refresh(),
+            ]);
+        });
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -1192,3 +1318,5 @@ if (!$emailVerified) {
     Route::get('/user', function (Request $request) {
         return $request->user();
     })->middleware('auth:sanctum');
+
+

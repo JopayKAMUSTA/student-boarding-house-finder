@@ -26,7 +26,9 @@ class AdminOwnerManagementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.role', 'admin')
-            ->assertJsonStructure(['data' => ['token']]);
+            ->assertJsonStructure([
+                'data' => ['token'],
+            ]);
 
         $owner = User::factory()->create([
             'role' => 'owner',
@@ -38,7 +40,10 @@ class AdminOwnerManagementTest extends TestCase
             'password' => 'password',
         ])->assertForbidden();
 
-        $admin->update(['status' => 'suspended']);
+        $admin->update([
+            'status' => 'suspended',
+        ]);
+
         $this->postJson('/api/admin/login', [
             'email' => $admin->email,
             'password' => 'password',
@@ -55,9 +60,14 @@ class AdminOwnerManagementTest extends TestCase
             'business_address' => 'Tagum City',
             'contact_number' => '09123456789',
         ]);
-        User::factory()->create(['role' => 'student']);
 
-        $this->getJson('/api/admin/owners')->assertUnauthorized();
+        User::factory()->create([
+            'role' => 'student',
+        ]);
+
+        $this->getJson('/api/admin/owners')
+            ->assertUnauthorized();
+
         $this->patchJson("/api/admin/owners/{$owner->id}/verification", [
             'verification_status' => 'approved',
         ])->assertUnauthorized();
@@ -66,12 +76,15 @@ class AdminOwnerManagementTest extends TestCase
             'role' => 'student',
             'status' => 'active',
         ]));
-        $this->getJson('/api/admin/owners')->assertForbidden();
+
+        $this->getJson('/api/admin/owners')
+            ->assertForbidden();
 
         Sanctum::actingAs(User::factory()->create([
             'role' => 'admin',
             'status' => 'active',
         ]));
+
         $this->getJson('/api/admin/owners')
             ->assertOk()
             ->assertJsonPath('success', true)
@@ -85,12 +98,18 @@ class AdminOwnerManagementTest extends TestCase
     {
         $owner = $this->createOwner([], [
             'verification_status' => 'pending',
+
+            // Required by AdminOwnerController before approval.
+            'valid_id_front' => 'owner-documents/test-front.jpg',
+            'valid_id_back' => 'owner-documents/test-back.jpg',
         ]);
+
         Sanctum::actingAs(User::factory()->create([
             'role' => 'admin',
             'status' => 'active',
         ]));
 
+        // APPROVE OWNER
         $this->patchJson("/api/admin/owners/{$owner->id}/verification", [
             'verification_status' => 'approved',
         ])
@@ -102,23 +121,32 @@ class AdminOwnerManagementTest extends TestCase
             'user_id' => $owner->id,
             'verification_status' => 'approved',
         ]);
-        $this->assertNotNull($owner->ownerProfile()->firstOrFail()->verified_at);
+
+        $this->assertNotNull(
+            $owner->ownerProfile()->firstOrFail()->verified_at
+        );
+
         $this->assertDatabaseHas('users', [
             'id' => $owner->id,
             'status' => 'active',
         ]);
 
+        // REJECT OWNER
         $this->patchJson("/api/admin/owners/{$owner->id}/verification", [
             'verification_status' => 'rejected',
+            'rejection_reason' => 'Submitted identity document could not be verified.',
         ])
             ->assertOk()
+            ->assertJsonPath('success', true)
             ->assertJsonPath('data.owner_profile.verification_status', 'rejected');
 
         $this->assertDatabaseHas('owner_profiles', [
             'user_id' => $owner->id,
             'verification_status' => 'rejected',
             'verified_at' => null,
+            'rejection_reason' => 'Submitted identity document could not be verified.',
         ]);
+
         $this->assertDatabaseHas('users', [
             'id' => $owner->id,
             'status' => 'active',
@@ -131,17 +159,24 @@ class AdminOwnerManagementTest extends TestCase
             'role' => 'admin',
             'status' => 'active',
         ]);
-        $student = User::factory()->create(['role' => 'student']);
+
+        $student = User::factory()->create([
+            'role' => 'student',
+        ]);
+
         $owner = $this->createOwner();
+
         Sanctum::actingAs(User::factory()->create([
             'role' => 'student',
             'status' => 'active',
         ]));
+
         $this->patchJson("/api/admin/owners/{$owner->id}/verification", [
             'verification_status' => 'approved',
         ])->assertForbidden();
 
         Sanctum::actingAs($admin);
+
         $this->patchJson("/api/admin/owners/{$student->id}/verification", [
             'verification_status' => 'approved',
         ])->assertNotFound();
@@ -150,19 +185,24 @@ class AdminOwnerManagementTest extends TestCase
             'verification_status' => 'pending',
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['verification_status']);
+            ->assertJsonValidationErrors([
+                'verification_status',
+            ]);
 
         Sanctum::actingAs(User::factory()->create([
             'role' => 'admin',
             'status' => 'suspended',
         ]));
+
         $this->patchJson("/api/admin/owners/{$owner->id}/verification", [
             'verification_status' => 'approved',
         ])->assertForbidden();
     }
 
-    private function createOwner(array $userAttributes = [], array $profileAttributes = []): User
-    {
+    private function createOwner(
+        array $userAttributes = [],
+        array $profileAttributes = []
+    ): User {
         $owner = User::factory()->create([
             'role' => 'owner',
             'status' => 'active',

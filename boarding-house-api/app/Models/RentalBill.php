@@ -134,8 +134,13 @@ class RentalBill extends Model
 
     public function getPaymentStatusAttribute(): string
     {
-        $balance = $this->outstandingInCents();
-        if ($balance === 0) {
+        if ($this->voided_at !== null) {
+            return 'voided';
+        }
+
+        $summary = $this->financialSummary();
+
+        if ($summary['_total_outstanding_cents'] === 0) {
             return 'paid';
         }
 
@@ -146,7 +151,7 @@ class RentalBill extends Model
             return 'overdue';
         }
 
-        return $this->financialSummary()['_total_payments_cents'] > 0
+        return $summary['_total_payments_cents'] > 0
             ? 'partially_paid'
             : 'unpaid';
     }
@@ -183,5 +188,4 @@ class RentalBill extends Model
 
         return ((int) $whole * 100) + (int) $fraction;
     }
-
 }

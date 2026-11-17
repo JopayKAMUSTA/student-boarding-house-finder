@@ -1,11 +1,15 @@
+
 <div class="tenant-management-page">
   <header class="page-header">
     <div>
       <h1>Tenant Management</h1>
-      <p>Register tenants, manage their contact information, and keep room assignment history.</p>
+      <p>Register students, manage their contact information, and keep room assignment history.</p>
     </div>
+
     <button type="button" class="btn btn-primary" (click)="openAddForm()">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
       Add Tenant
     </button>
   </header>
@@ -14,62 +18,266 @@
     {{ successMessage }}
   </p>
 
-  <section *ngIf="isAddFormOpen" class="panel" aria-labelledby="add-tenant-heading">
+  <!-- REGISTER TENANT -->
+  <section
+    *ngIf="isAddFormOpen"
+    class="panel"
+    aria-labelledby="add-tenant-heading">
+
     <div class="panel-heading">
       <div>
         <h2 id="add-tenant-heading">Register a tenant</h2>
-        <p>This creates a tenant record only. It does not create a student login account.</p>
+        <p>Select an existing active TagStay student account.</p>
       </div>
-      <button type="button" class="icon-button" aria-label="Close form" (click)="closeAddForm()">×</button>
+
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="Close form"
+        (click)="closeAddForm()">
+        ×
+      </button>
     </div>
 
     <form #tenantFormRef="ngForm" (ngSubmit)="createTenant(tenantFormRef)">
+
+      <!-- STUDENT SEARCH -->
+      <div class="student-selection-section">
+        <label for="student-search">
+          Search registered students
+        </label>
+
+        <input
+          id="student-search"
+          name="student_search"
+          type="search"
+          maxlength="255"
+          [ngModel]="studentSearch"
+          (ngModelChange)="searchStudents($event)"
+          placeholder="Search by student name or email..."
+          autocomplete="off"
+          [disabled]="isLoadingStudents || isCreatingTenant"/>
+
+        <p class="help-text">
+          Search for an active registered student account.
+        </p>
+
+        <!-- LOADING -->
+        <p
+          *ngIf="isLoadingStudents"
+          role="status"
+          class="notice">
+          <span class="spinner" aria-hidden="true"></span>
+          Searching student accounts...
+        </p>
+
+        <!-- STUDENT RESULTS -->
+        <div
+          *ngIf="!isLoadingStudents && students.length > 0"
+          class="student-results">
+
+          <div class="student-results-heading">
+            <strong>Available student accounts</strong>
+            <span>{{ studentTotal }} found</span>
+          </div>
+
+          <div
+            *ngFor="let student of students"
+            class="student-result"
+            [class.student-result-selected]="tenantForm.user_id === student.id">
+
+            <div class="student-result-info">
+              <strong>{{ student.name }}</strong>
+              <span>{{ student.email }}</span>
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-outline btn-small"
+              (click)="selectStudent(student)"
+              [disabled]="isCreatingTenant">
+
+              {{ tenantForm.user_id === student.id ? 'Selected' : 'Select' }}
+            </button>
+          </div>
+
+          <!-- STUDENT PAGINATION -->
+          <nav
+            *ngIf="studentLastPage > 1"
+            class="pagination student-pagination"
+            aria-label="Student result pages">
+
+            <button
+              type="button"
+              class="btn btn-outline"
+              (click)="previousStudentPage()"
+              [disabled]="isLoadingStudents || studentCurrentPage <= 1">
+              Previous
+            </button>
+
+            <span>
+              Page {{ studentCurrentPage }} of {{ studentLastPage }}
+            </span>
+
+            <button
+              type="button"
+              class="btn btn-outline"
+              (click)="nextStudentPage()"
+              [disabled]="isLoadingStudents || studentCurrentPage >= studentLastPage">
+              Next
+            </button>
+          </nav>
+        </div>
+
+        <!-- EMPTY RESULTS -->
+        <p
+          *ngIf="!isLoadingStudents && students.length === 0"
+          class="notice">
+          {{ studentSearch.trim()
+            ? 'No students matched your search.'
+            : 'No available active student accounts were found.' }}
+        </p>
+
+        <!-- SELECTED STUDENT -->
+        <div
+          *ngIf="selectedStudent"
+          class="selected-student">
+
+          <div>
+            <span class="selected-label">Selected student</span>
+            <strong>{{ selectedStudent.name }}</strong>
+            <span>{{ selectedStudent.email }}</span>
+          </div>
+
+          <span class="badge badge-active">Selected</span>
+        </div>
+
+        <input
+          type="hidden"
+          name="user_id"
+          [(ngModel)]="tenantForm.user_id"
+          required/>
+      </div>
+
+      <!-- TENANT INFORMATION -->
       <div class="form-grid">
+
+        <label>
+          Registered email
+          <input
+            type="email"
+            [value]="selectedStudent?.email || ''"
+            readonly
+            placeholder="Automatically displayed"/>
+        </label>
+
         <label>
           Full name
-          <input name="full_name" type="text" maxlength="255"
-            [(ngModel)]="tenantForm.full_name" required />
+          <input
+            type="text"
+            [value]="selectedStudent?.name || ''"
+            readonly
+            placeholder="Automatically displayed"/>
         </label>
+
         <label>
           Contact number
-          <input name="contact_number" type="tel" maxlength="30"
-            [(ngModel)]="tenantForm.contact_number" required />
+          <input
+            name="contact_number"
+            type="tel"
+            maxlength="30"
+            [(ngModel)]="tenantForm.contact_number"
+            required/>
         </label>
+
         <label>
-          Emergency contact name <span class="optional">(optional)</span>
-          <input name="emergency_contact_name" type="text" maxlength="255"
-            [(ngModel)]="tenantForm.emergency_contact_name" />
+          Emergency contact name
+          <span class="optional">(optional)</span>
+          <input
+            name="emergency_contact_name"
+            type="text"
+            maxlength="255"
+            [(ngModel)]="tenantForm.emergency_contact_name"/>
         </label>
+
         <label>
-          Emergency contact number <span class="optional">(optional)</span>
-          <input name="emergency_contact_number" type="tel" maxlength="30"
-            [(ngModel)]="tenantForm.emergency_contact_number" />
+          Emergency contact number
+          <span class="optional">(optional)</span>
+          <input
+            name="emergency_contact_number"
+            type="tel"
+            maxlength="30"
+            [(ngModel)]="tenantForm.emergency_contact_number"/>
         </label>
+
       </div>
+
+      <div *ngIf="errorMessage" role="alert" class="notice notice-error">
+        {{ errorMessage }}
+      </div>
+
       <div class="form-actions">
-        <button type="button" class="btn btn-outline" (click)="closeAddForm()"
-          [disabled]="isCreatingTenant">Cancel</button>
-        <button type="submit" class="btn btn-primary" [disabled]="isCreatingTenant">
+        <button
+          type="button"
+          class="btn btn-outline"
+          (click)="closeAddForm()"
+          [disabled]="isCreatingTenant">
+          Cancel
+        </button>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="
+            isCreatingTenant ||
+            isLoadingStudents ||
+            !tenantForm.user_id ||
+            !tenantForm.contact_number.trim()
+          ">
           {{ isCreatingTenant ? 'Saving...' : 'Register Tenant' }}
         </button>
       </div>
+
     </form>
   </section>
 
-  <div *ngIf="errorMessage" role="alert" class="notice notice-error">
+  <!-- GENERAL ERROR -->
+  <div *ngIf="errorMessage && !isAddFormOpen"
+    role="alert"
+    class="notice notice-error">
+
     <p>{{ errorMessage }}</p>
-    <button type="button" class="btn btn-outline" (click)="loadTenants()" [disabled]="isLoading">
+
+    <button
+      type="button"
+      class="btn btn-outline"
+      (click)="loadTenants()"
+      [disabled]="isLoading">
       Try Again
     </button>
   </div>
 
+  <!-- TENANT LIST -->
   <section class="tenant-list-panel" aria-label="Tenant list">
+
     <form class="search-form" (ngSubmit)="searchTenants()">
       <label for="tenant-search">Search tenants</label>
+
       <div class="search-controls">
-        <input id="tenant-search" name="search" type="search" maxlength="255"
-          [(ngModel)]="searchText" placeholder="Search by name or contact number" />
-        <button type="submit" class="btn btn-outline" [disabled]="isLoading">Search</button>
+        <input
+          id="tenant-search"
+          name="search"
+          type="search"
+          maxlength="255"
+          [(ngModel)]="searchText"
+          placeholder="Search by name or contact number"/>
+
+        <button
+          type="submit"
+          class="btn btn-outline"
+          [disabled]="isLoading">
+          Search
+        </button>
       </div>
     </form>
 
@@ -78,19 +286,42 @@
       Loading tenants...
     </p>
 
-    <div *ngIf="!isLoading && !errorMessage && total === 0" class="empty">
+    <div
+      *ngIf="!isLoading && !errorMessage && total === 0"
+      class="empty">
+
       <span class="empty-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 2.8-5.5 6.5-5.5s6.5 2 6.5 5.5M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15c2.2.7 3.5 2.3 3.5 5"/></svg>
+        <svg viewBox="0 0 24 24">
+          <circle cx="9" cy="8" r="3.5"/>
+          <path d="M2.5 20c0-3.5 2.8-5.5 6.5-5.5s6.5 2 6.5 5.5M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15c2.2.7 3.5 2.3 3.5 5"/>
+        </svg>
       </span>
-      <h2>{{ searchText ? 'No tenants match your search' : 'No tenants registered yet' }}</h2>
-      <p>{{ searchText ? 'Try another name or contact number.' : 'Register a tenant to start managing room assignments.' }}</p>
-      <button *ngIf="!searchText" type="button" class="btn btn-primary" (click)="openAddForm()">
+
+      <h2>
+        {{ searchText ? 'No tenants match your search' : 'No tenants registered yet' }}
+      </h2>
+
+      <p>
+        {{ searchText
+          ? 'Try another name or contact number.'
+          : 'Register a student to start managing room assignments.' }}
+      </p>
+
+      <button
+        *ngIf="!searchText"
+        type="button"
+        class="btn btn-primary"
+        (click)="openAddForm()">
         Add your first tenant
       </button>
     </div>
 
     <ng-container *ngIf="!isLoading && !errorMessage && tenants.length > 0">
-      <p class="count">{{ total }} tenant{{ total === 1 ? '' : 's' }}</p>
+
+      <p class="count">
+        {{ total }} tenant{{ total === 1 ? '' : 's' }}
+      </p>
+
       <div class="table-wrap">
         <table>
           <thead>
@@ -101,28 +332,47 @@
               <th scope="col">Room</th>
               <th scope="col">Monthly rent</th>
               <th scope="col">Assignment status</th>
-              <th scope="col"><span class="visually-hidden">Actions</span></th>
+              <th scope="col">
+                <span class="visually-hidden">Actions</span>
+              </th>
             </tr>
           </thead>
+
           <tbody>
             <tr *ngFor="let tenant of tenants; trackBy: trackTenant">
               <th scope="row">{{ tenant.full_name }}</th>
+
               <td>{{ tenant.contact_number }}</td>
-              <td>{{ tenant.current_assignment?.boarding_house_room?.boarding_house?.name || '—' }}</td>
-              <td>{{ tenant.current_assignment?.boarding_house_room?.room_number || '—' }}</td>
+
+              <td>
+                {{ tenant.current_assignment?.boarding_house_room?.boarding_house?.name || '—' }}
+              </td>
+
+              <td>
+                {{ tenant.current_assignment?.boarding_house_room?.room_number || '—' }}
+              </td>
+
               <td>
                 <span *ngIf="tenant.current_assignment">
                   {{ tenant.current_assignment.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}
                 </span>
+
                 <span *ngIf="!tenant.current_assignment">—</span>
               </td>
+
               <td>
-                <span class="badge" [class.badge-active]="tenant.current_assignment">
+                <span
+                  class="badge"
+                  [class.badge-active]="tenant.current_assignment">
                   {{ formatAssignmentStatus(tenant) | titlecase }}
                 </span>
               </td>
+
               <td class="action-cell">
-                <button type="button" class="btn btn-outline btn-small" (click)="openDetails(tenant)">
+                <button
+                  type="button"
+                  class="btn btn-outline btn-small"
+                  (click)="openDetails(tenant)">
                   View details
                 </button>
               </td>
@@ -131,102 +381,202 @@
         </table>
       </div>
 
-      <nav *ngIf="lastPage > 1" aria-label="Tenant pages" class="pagination">
-        <button type="button" class="btn btn-outline" (click)="previousPage()"
-          [disabled]="isLoading || currentPage <= 1">Previous</button>
+      <nav
+        *ngIf="lastPage > 1"
+        aria-label="Tenant pages"
+        class="pagination">
+
+        <button
+          type="button"
+          class="btn btn-outline"
+          (click)="previousPage()"
+          [disabled]="isLoading || currentPage <= 1">
+          Previous
+        </button>
+
         <span>Page {{ currentPage }} of {{ lastPage }}</span>
-        <button type="button" class="btn btn-outline" (click)="nextPage()"
-          [disabled]="isLoading || currentPage >= lastPage">Next</button>
+
+        <button
+          type="button"
+          class="btn btn-outline"
+          (click)="nextPage()"
+          [disabled]="isLoading || currentPage >= lastPage">
+          Next
+        </button>
       </nav>
+
     </ng-container>
   </section>
 
+  <!-- TENANT DETAILS -->
   <div *ngIf="isDetailsOpen" class="modal-backdrop">
-    <section class="details-dialog" role="dialog" aria-modal="true" aria-labelledby="tenant-details-title">
+
+    <section
+      class="details-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tenant-details-title">
+
       <header class="dialog-header">
         <div>
           <p class="eyebrow">Tenant record</p>
-          <h2 id="tenant-details-title">{{ selectedTenant?.full_name || 'Tenant details' }}</h2>
+
+          <h2 id="tenant-details-title">
+            {{ selectedTenant?.full_name || 'Tenant details' }}
+          </h2>
         </div>
-        <button type="button" class="icon-button" aria-label="Close details"
-          (click)="closeDetails()">×</button>
+
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Close details"
+          (click)="closeDetails()">
+          ×
+        </button>
       </header>
 
       <p *ngIf="isLoadingDetails" role="status" class="notice">
         <span class="spinner" aria-hidden="true"></span>
         Loading tenant details...
       </p>
+
       <div *ngIf="detailsError" role="alert" class="notice notice-error">
         {{ detailsError }}
       </div>
 
       <ng-container *ngIf="selectedTenant as tenant">
+
+        <!-- CURRENT ASSIGNMENT -->
         <div class="current-assignment">
+
           <div class="section-title">
             <div>
               <h3>Current room assignment</h3>
+
               <p *ngIf="tenant.current_assignment?.boarding_house_room as room">
-                {{ room.boarding_house?.name || 'Boarding house' }} · Room {{ room.room_number }}
+                {{ room.boarding_house?.name || 'Boarding house' }}
+                · Room {{ room.room_number }}
               </p>
-              <p *ngIf="!tenant.current_assignment">This tenant does not have an active room assignment.</p>
+
+              <p *ngIf="!tenant.current_assignment">
+                This tenant does not have an active room assignment.
+              </p>
             </div>
-            <span class="badge" [class.badge-active]="tenant.current_assignment">
+
+            <span
+              class="badge"
+              [class.badge-active]="tenant.current_assignment">
               {{ tenant.current_assignment ? 'Active' : 'Unassigned' }}
             </span>
           </div>
 
-          <dl *ngIf="tenant.current_assignment as assignment" class="assignment-facts">
+          <dl
+            *ngIf="tenant.current_assignment as assignment"
+            class="assignment-facts">
+
             <div>
               <dt>Move-in date</dt>
               <dd>{{ assignment.move_in_date | date:'mediumDate' }}</dd>
             </div>
+
             <div>
               <dt>Monthly rent</dt>
-              <dd>{{ assignment.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}</dd>
+              <dd>
+                {{ assignment.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}
+              </dd>
             </div>
           </dl>
 
           <div class="assignment-actions">
-            <button *ngIf="!tenant.current_assignment" type="button" class="btn btn-primary"
-              (click)="openAssignment('assign')">Assign a room</button>
+
+            <button
+              *ngIf="!tenant.current_assignment"
+              type="button"
+              class="btn btn-primary"
+              (click)="openAssignment('assign')">
+              Assign a room
+            </button>
+
             <ng-container *ngIf="tenant.current_assignment">
-              <button type="button" class="btn btn-outline" (click)="openAssignment('transfer')">
+
+              <button
+                type="button"
+                class="btn btn-outline"
+                (click)="openAssignment('transfer')">
                 Transfer room
               </button>
-              <button type="button" class="btn btn-danger-outline" (click)="moveOut()"
+
+              <button
+                type="button"
+                class="btn btn-danger-outline"
+                (click)="moveOut()"
                 [disabled]="isMovingOut">
                 {{ isMovingOut ? 'Moving out...' : 'Move out' }}
               </button>
+
             </ng-container>
           </div>
         </div>
 
-        <section *ngIf="assignmentMode" class="assignment-form-panel">
+        <!-- ASSIGNMENT FORM -->
+        <section
+          *ngIf="assignmentMode"
+          class="assignment-form-panel">
+
           <div class="section-title">
             <div>
-              <h3>{{ assignmentMode === 'transfer' ? 'Transfer tenant' : 'Assign a room' }}</h3>
+              <h3>
+                {{ assignmentMode === 'transfer' ? 'Transfer tenant' : 'Assign a room' }}
+              </h3>
+
               <p *ngIf="assignmentMode === 'transfer'">
-                Choose an available room in {{ tenant.current_assignment?.boarding_house_room?.boarding_house?.name || 'the same boarding house' }}.
+                Choose an available room in
+                {{ tenant.current_assignment?.boarding_house_room?.boarding_house?.name || 'the same boarding house' }}.
               </p>
             </div>
-            <button type="button" class="text-button" (click)="assignmentMode = null"
-              [disabled]="isSavingAssignment">Cancel</button>
+
+            <button
+              type="button"
+              class="text-button"
+              (click)="assignmentMode = null"
+              [disabled]="isSavingAssignment">
+              Cancel
+            </button>
           </div>
 
           <p *ngIf="isLoadingBoardingHouses" role="status" class="inline-status">
             Loading your approved boarding houses...
           </p>
-          <p *ngIf="isLoadingRooms" role="status" class="inline-status">Loading available rooms...</p>
-          <p *ngIf="assignmentError" role="alert" class="inline-error">{{ assignmentError }}</p>
 
-          <form #assignmentForm="ngForm" (ngSubmit)="submitAssignment(assignmentForm)">
+          <p *ngIf="isLoadingRooms" role="status" class="inline-status">
+            Loading available rooms...
+          </p>
+
+          <p *ngIf="assignmentError" role="alert" class="inline-error">
+            {{ assignmentError }}
+          </p>
+
+          <form
+            #assignmentForm="ngForm"
+            (ngSubmit)="submitAssignment(assignmentForm)">
+
             <label *ngIf="assignmentMode === 'assign'">
               Boarding house
-              <select name="boarding_house_id" [ngModel]="selectedBoardingHouseId"
-                (ngModelChange)="selectBoardingHouse($event)" required
+
+              <select
+                name="boarding_house_id"
+                [ngModel]="selectedBoardingHouseId"
+                (ngModelChange)="selectBoardingHouse($event)"
+                required
                 [disabled]="isLoadingBoardingHouses || isLoadingRooms">
-                <option [ngValue]="null">Select a boarding house</option>
-                <option *ngFor="let house of boardingHouses" [ngValue]="house.id">
+
+                <option [ngValue]="null">
+                  Select a boarding house
+                </option>
+
+                <option
+                  *ngFor="let house of boardingHouses"
+                  [ngValue]="house.id">
                   {{ house.name }}
                 </option>
               </select>
@@ -234,88 +584,180 @@
 
             <label>
               Available room
-              <select name="boarding_house_room_id" [(ngModel)]="selectedRoomId" required
+
+              <select
+                name="boarding_house_room_id"
+                [(ngModel)]="selectedRoomId"
+                required
                 [disabled]="isLoadingRooms || rooms.length === 0">
+
                 <option [ngValue]="null">Select a room</option>
-                <option *ngFor="let room of rooms" [ngValue]="room.id">
-                  Room {{ room.room_number }} · {{ room.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}/month
+
+                <option
+                  *ngFor="let room of rooms"
+                  [ngValue]="room.id">
+
+                  Room {{ room.room_number }} ·
+                  {{ room.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}/month
                 </option>
               </select>
             </label>
 
             <label>
               Move-in date
-              <input name="move_in_date" type="date" [(ngModel)]="moveInDate" required />
+
+              <input
+                name="move_in_date"
+                type="date"
+                [(ngModel)]="moveInDate"
+                required/>
             </label>
-            <button type="submit" class="btn btn-primary"
-              [disabled]="isSavingAssignment || isLoadingRooms || isLoadingBoardingHouses || rooms.length === 0">
-              {{ isSavingAssignment ? 'Saving...' : assignmentMode === 'transfer' ? 'Transfer tenant' : 'Assign tenant' }}
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="
+                isSavingAssignment ||
+                isLoadingRooms ||
+                isLoadingBoardingHouses ||
+                rooms.length === 0">
+
+              {{ isSavingAssignment
+                ? 'Saving...'
+                : assignmentMode === 'transfer'
+                  ? 'Transfer tenant'
+                  : 'Assign tenant' }}
             </button>
+
           </form>
         </section>
 
-        <form #contactFormRef="ngForm" class="contact-form" (ngSubmit)="updateContact(contactFormRef)">
+        <!-- CONTACT INFORMATION -->
+        <form
+          #contactFormRef="ngForm"
+          class="contact-form"
+          (ngSubmit)="updateContact(contactFormRef)">
+
           <div class="section-title">
             <div>
               <h3>Tenant contact information</h3>
-              <p>Full name is read-only. Update the contact details below.</p>
+              <p>
+                Registered student name is read-only.
+                Update the contact details below.
+              </p>
             </div>
           </div>
+
           <label>
             Full name
-            <input type="text" [value]="tenant.full_name" disabled />
+            <input
+              type="text"
+              [value]="tenant.full_name"
+              disabled/>
           </label>
+
           <div class="form-grid">
+
             <label>
               Contact number
-              <input name="contact_number" type="tel" maxlength="30"
-                [(ngModel)]="contactForm.contact_number" required />
+              <input
+                name="contact_number"
+                type="tel"
+                maxlength="30"
+                [(ngModel)]="contactForm.contact_number"
+                required/>
             </label>
+
             <label>
               Emergency contact name
-              <input name="emergency_contact_name" type="text" maxlength="255"
-                [(ngModel)]="contactForm.emergency_contact_name" />
+              <input
+                name="emergency_contact_name"
+                type="text"
+                maxlength="255"
+                [(ngModel)]="contactForm.emergency_contact_name"/>
             </label>
+
             <label>
               Emergency contact number
-              <input name="emergency_contact_number" type="tel" maxlength="30"
-                [(ngModel)]="contactForm.emergency_contact_number" />
+              <input
+                name="emergency_contact_number"
+                type="tel"
+                maxlength="30"
+                [(ngModel)]="contactForm.emergency_contact_number"/>
             </label>
+
           </div>
+
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="isSavingContact">
-              {{ isSavingContact ? 'Saving...' : 'Save contact information' }}
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="isSavingContact">
+
+              {{ isSavingContact
+                ? 'Saving...'
+                : 'Save contact information' }}
             </button>
           </div>
+
         </form>
 
-        <section class="history-section" aria-labelledby="assignment-history-title">
+        <!-- ASSIGNMENT HISTORY -->
+        <section
+          class="history-section"
+          aria-labelledby="assignment-history-title">
+
           <div class="section-title">
             <div>
               <h3 id="assignment-history-title">Assignment history</h3>
-              <p>Previous assignments are retained for the tenant record.</p>
+              <p>
+                Previous assignments are retained for the tenant record.
+              </p>
             </div>
           </div>
-          <p *ngIf="!tenant.assignments?.length" class="no-history">No room assignment history yet.</p>
-          <ol *ngIf="tenant.assignments?.length" class="history-list">
+
+          <p
+            *ngIf="!tenant.assignments?.length"
+            class="no-history">
+            No room assignment history yet.
+          </p>
+
+          <ol
+            *ngIf="tenant.assignments?.length"
+            class="history-list">
+
             <li *ngFor="let assignment of tenant.assignments">
+
               <div class="history-heading">
                 <strong>
                   {{ assignment.boarding_house_room?.boarding_house?.name || 'Boarding house' }}
                   · Room {{ assignment.boarding_house_room?.room_number || '—' }}
                 </strong>
-                <span class="badge" [class.badge-active]="assignment.status === 'active'">
+
+                <span
+                  class="badge"
+                  [class.badge-active]="assignment.status === 'active'">
                   {{ assignment.status | titlecase }}
                 </span>
               </div>
+
               <p>
                 {{ assignment.move_in_date | date:'mediumDate' }}
-                <span *ngIf="assignment.move_out_date"> – {{ assignment.move_out_date | date:'mediumDate' }}</span>
+
+                <span *ngIf="assignment.move_out_date">
+                  – {{ assignment.move_out_date | date:'mediumDate' }}
+                </span>
               </p>
-              <small>{{ assignment.monthly_rent | currency:'PHP':'symbol':'1.0-2' }} / month</small>
+
+              <small>
+                {{ assignment.monthly_rent | currency:'PHP':'symbol':'1.0-2' }}
+                / month
+              </small>
+
             </li>
           </ol>
         </section>
+
       </ng-container>
     </section>
   </div>

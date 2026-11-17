@@ -11,6 +11,7 @@ class Conversation extends Model
 {
     protected $fillable = [
         'owner_id',
+        'student_id',
         'tenant_id',
         'boarding_house_id',
     ];
@@ -18,6 +19,11 @@ class Conversation extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function student(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'student_id');
     }
 
     public function tenant(): BelongsTo

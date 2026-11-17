@@ -1,3 +1,4 @@
+
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
@@ -14,7 +15,6 @@ import {
   OwnerTenantPageResponse,
   RentalBillInfo,
   RentalBillPageResponse,
-  RentalPaymentPageResponse,
   RentalPaymentInfo
 } from '../../services/owner-auth';
 
@@ -40,9 +40,11 @@ export class RentalBills implements OnInit {
   isLoadingBills = false;
   billsError = '';
   billingMonth = this.currentMonth();
+
   isLoadingGenerationStatus = false;
   generationStatusError = '';
   generationStatus: RentalBillGenerationStatusResponse['data'] | null = null;
+
   pendingPayments: RentalPaymentInfo[] = [];
   isLoadingPendingPayments = false;
   pendingPaymentsError = '';
@@ -54,6 +56,11 @@ export class RentalBills implements OnInit {
   amountAdjustmentReason = '';
   rejectionReason = '';
   reviewError = '';
+
+  // Rental bill email sending
+  sendingBillId: number | null = null;
+  emailSuccess = '';
+  emailError = '';
 
   isCreateFormOpen = false;
   isLoadingOptions = false;
@@ -153,6 +160,65 @@ export class RentalBills implements OnInit {
       : null;
   }
 
+  // Send or resend the rental bill to the student's registered email.
+  sendBill(bill: RentalBillInfo): void {
+    if (bill.is_voided || this.sendingBillId !== null) {
+      return;
+    }
+
+    const token = this.getTokenOrRedirect();
+    if (!token) {
+      return;
+    }
+
+    const action = bill.sent_at ? 'resend' : 'send';
+
+    if (!window.confirm(
+      `${action === 'resend' ? 'Resend' : 'Send'} rental bill #${bill.id} to the student's registered email?`
+    )) {
+      return;
+    }
+
+    this.sendingBillId = bill.id;
+    this.emailSuccess = '';
+    this.emailError = '';
+
+    this.ownerAuth.sendOwnerRentalBill(token, bill.id).subscribe({
+      next: (response) => {
+        this.sendingBillId = null;
+
+        if (!response.success) {
+          this.emailError = response.message || 'The rental bill email could not be sent.';
+          this.cdr.detectChanges();
+          return;
+        }
+
+        this.emailSuccess = response.message || 'Rental bill email sent successfully.';
+
+        const sentAt = response.sent_at ?? new Date().toISOString();
+
+        this.bills = this.bills.map((item) =>
+          item.id === bill.id ? { ...item, sent_at: sentAt } : item
+        );
+
+        if (this.selectedBill?.id === bill.id) {
+          this.selectedBill = { ...this.selectedBill, sent_at: sentAt };
+        }
+
+        this.cdr.detectChanges();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.sendingBillId = null;
+        this.emailError = this.getApiErrorMessage(
+          error,
+          'The rental bill email could not be sent.'
+        );
+        this.handleUnauthorized(error);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   loadBills(page = this.currentPage): void {
     const token = this.getTokenOrRedirect();
     if (!token) {
@@ -161,9 +227,11 @@ export class RentalBills implements OnInit {
 
     this.isLoadingBills = true;
     this.billsError = '';
+
     this.ownerAuth.getOwnerRentalBills(token, page, 15, this.billingMonth).subscribe({
       next: (response) => {
         this.isLoadingBills = false;
+
         if (!this.isBillPageResponse(response)) {
           this.billsError = 'The rental-bill list response was not valid.';
           this.cdr.detectChanges();
@@ -199,14 +267,17 @@ export class RentalBills implements OnInit {
 
     this.isLoadingGenerationStatus = true;
     this.generationStatusError = '';
+
     this.ownerAuth.getOwnerRentalBillGenerationStatus(token, this.billingMonth).subscribe({
       next: (response) => {
         this.isLoadingGenerationStatus = false;
+
         if (!response.success || !response.data) {
           this.generationStatusError = 'The bill-generation status response was not valid.';
           this.cdr.detectChanges();
           return;
         }
+
         this.generationStatus = response.data;
         this.cdr.detectChanges();
       },
@@ -230,14 +301,17 @@ export class RentalBills implements OnInit {
 
     this.isLoadingPendingPayments = true;
     this.pendingPaymentsError = '';
+
     this.ownerAuth.getOwnerRentalPaymentSubmissions(token, 'pending', 1, 100).subscribe({
       next: (response) => {
         this.isLoadingPendingPayments = false;
+
         if (!response.success || !Array.isArray(response.data?.data)) {
           this.pendingPaymentsError = 'The payment-submission response was not valid.';
           this.cdr.detectChanges();
           return;
         }
+
         this.pendingPayments = response.data.data;
         this.cdr.detectChanges();
       },
@@ -257,6 +331,7 @@ export class RentalBills implements OnInit {
     if (this.reviewingPaymentId !== null || payment.status !== 'pending') {
       return;
     }
+
     this.selectedReviewPaymentId = payment.id;
     this.verifiedAmount = Number(payment.submitted_amount ?? payment.amount);
     this.verifiedPaymentDate = payment.submitted_payment_date ?? payment.payment_date;
@@ -283,11 +358,10 @@ export class RentalBills implements OnInit {
       this.reviewError = 'Enter a valid verified amount and payment date.';
       return;
     }
+
     const submitted = Number(payment.submitted_amount ?? payment.amount);
-    if (
-      this.verifiedAmount !== submitted &&
-      !this.amountAdjustmentReason.trim()
-    ) {
+
+    if (this.verifiedAmount !== submitted && !this.amountAdjustmentReason.trim()) {
       this.reviewError = 'A reason is required when changing the submitted amount.';
       return;
     }
@@ -300,6 +374,7 @@ export class RentalBills implements OnInit {
     this.reviewingPaymentId = payment.id;
     this.reviewError = '';
     this.paymentReviewSuccess = '';
+
     this.ownerAuth.approveOwnerRentalPayment(token, payment.id, {
       amount: this.verifiedAmount,
       payment_date: this.verifiedPaymentDate,
@@ -309,15 +384,19 @@ export class RentalBills implements OnInit {
     }).subscribe({
       next: (response) => {
         this.reviewingPaymentId = null;
+
         if (!response.success || !response.bill) {
           this.reviewError = response.message || 'The payment submission could not be approved.';
           this.cdr.detectChanges();
           return;
         }
+
         this.paymentReviewSuccess = response.message || 'Payment approved.';
+
         if (this.selectedBill?.id === response.bill.id) {
           this.selectedBill = response.bill;
         }
+
         this.selectedReviewPaymentId = null;
         this.loadPendingPayments();
         this.loadBills(this.currentPage);
@@ -325,7 +404,10 @@ export class RentalBills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         this.reviewingPaymentId = null;
-        this.reviewError = this.getApiErrorMessage(error, 'The payment submission could not be approved.');
+        this.reviewError = this.getApiErrorMessage(
+          error,
+          'The payment submission could not be approved.'
+        );
         this.handleUnauthorized(error);
         this.cdr.detectChanges();
       }
@@ -334,10 +416,16 @@ export class RentalBills implements OnInit {
 
   rejectPaymentSubmission(payment: RentalPaymentInfo): void {
     const reason = this.rejectionReason.trim();
-    if (this.selectedReviewPaymentId !== payment.id || !reason || this.reviewingPaymentId !== null) {
+
+    if (
+      this.selectedReviewPaymentId !== payment.id ||
+      !reason ||
+      this.reviewingPaymentId !== null
+    ) {
       this.reviewError = 'Enter a rejection reason before continuing.';
       return;
     }
+
     const token = this.getTokenOrRedirect();
     if (!token) {
       return;
@@ -346,18 +434,23 @@ export class RentalBills implements OnInit {
     this.reviewingPaymentId = payment.id;
     this.reviewError = '';
     this.paymentReviewSuccess = '';
+
     this.ownerAuth.rejectOwnerRentalPayment(token, payment.id, reason).subscribe({
       next: (response) => {
         this.reviewingPaymentId = null;
+
         if (!response.success || !response.bill) {
           this.reviewError = response.message || 'The payment submission could not be rejected.';
           this.cdr.detectChanges();
           return;
         }
+
         this.paymentReviewSuccess = response.message || 'Payment rejected.';
+
         if (this.selectedBill?.id === response.bill.id) {
           this.selectedBill = response.bill;
         }
+
         this.selectedReviewPaymentId = null;
         this.loadPendingPayments();
         this.loadBills(this.currentPage);
@@ -365,7 +458,10 @@ export class RentalBills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         this.reviewingPaymentId = null;
-        this.reviewError = this.getApiErrorMessage(error, 'The payment submission could not be rejected.');
+        this.reviewError = this.getApiErrorMessage(
+          error,
+          'The payment submission could not be rejected.'
+        );
         this.handleUnauthorized(error);
         this.cdr.detectChanges();
       }
@@ -376,16 +472,21 @@ export class RentalBills implements OnInit {
     if (!payment.proof_url) {
       return;
     }
+
     const proofWindow = window.open('about:blank', '_blank');
+
     if (!proofWindow) {
       this.pendingPaymentsError = 'Allow pop-ups to view the private payment proof.';
       return;
     }
+
     const token = this.getTokenOrRedirect();
+
     if (!token) {
       proofWindow.close();
       return;
     }
+
     this.ownerAuth.getOwnerRentalPaymentProof(token, payment.id).subscribe({
       next: (proof) => {
         const url = URL.createObjectURL(proof);
@@ -394,13 +495,15 @@ export class RentalBills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         proofWindow.close();
-        this.pendingPaymentsError = this.getApiErrorMessage(error, 'Could not open payment proof.');
+        this.pendingPaymentsError = this.getApiErrorMessage(
+          error,
+          'Could not open payment proof.'
+        );
         this.handleUnauthorized(error);
         this.cdr.detectChanges();
       }
     });
   }
-
 
   previousPage(): void {
     if (!this.isLoadingBills && this.currentPage > 1) {
@@ -437,11 +540,13 @@ export class RentalBills implements OnInit {
     }
 
     this.isLoadingOptions = true;
+
     this.ownerAuth.getOwnerTenants(token, 1, '', 100).pipe(
       switchMap((tenantResponse) => {
         if (!this.isTenantPageResponse(tenantResponse)) {
           throw new Error('The tenant list response was not valid.');
         }
+
         return forkJoin({
           tenants: this.loadTenantPages(token, tenantResponse),
           houses: this.ownerAuth.getOwnerBoardingHouses(token, 1).pipe(
@@ -449,6 +554,7 @@ export class RentalBills implements OnInit {
               if (!houseResponse.success || !houseResponse.data) {
                 throw new Error('The boarding-house list response was not valid.');
               }
+
               return this.loadHousePages(token, houseResponse.data);
             })
           )
@@ -460,6 +566,7 @@ export class RentalBills implements OnInit {
           tenant.current_assignment?.status === 'active' &&
           !!tenant.current_assignment.boarding_house_room
         );
+
         this.boardingHousePolicies = new Map(
           houses
             .filter((house): house is BoardingHouseRoomInfo & { id: number } =>
@@ -467,17 +574,23 @@ export class RentalBills implements OnInit {
             )
             .map((house) => [house.id, house.billing_policy ?? 'full_monthly'])
         );
+
         this.isLoadingOptions = false;
         this.cdr.detectChanges();
       },
       error: (error: HttpErrorResponse | Error) => {
         this.isLoadingOptions = false;
+
         if (error instanceof HttpErrorResponse) {
-          this.optionsError = this.getApiErrorMessage(error, 'Could not load eligible tenants.');
+          this.optionsError = this.getApiErrorMessage(
+            error,
+            'Could not load eligible tenants.'
+          );
           this.handleUnauthorized(error);
         } else {
           this.optionsError = error.message;
         }
+
         this.cdr.detectChanges();
       }
     });
@@ -486,6 +599,7 @@ export class RentalBills implements OnInit {
   createBill(): void {
     const tenant = this.selectedTenant;
     const assignment = tenant?.current_assignment;
+
     if (!tenant || !assignment || !this.rentalMonth || this.isCreatingBill) {
       this.createError = 'Select an eligible tenant and provide the anniversary billing month.';
       return;
@@ -497,13 +611,16 @@ export class RentalBills implements OnInit {
     }
 
     const cycle = this.anniversaryCycle(this.rentalMonth, assignment.move_in_date);
+
     if (!cycle) {
       this.createError = 'Choose a month after the assignment move-in month.';
       return;
     }
+
     this.isCreatingBill = true;
     this.createError = '';
     this.createSuccess = '';
+
     this.ownerAuth.createOwnerRentalBill(token, tenant.id, {
       room_assignment_id: assignment.id,
       rental_period_start: cycle.start,
@@ -512,13 +629,16 @@ export class RentalBills implements OnInit {
     }).subscribe({
       next: (response) => {
         this.isCreatingBill = false;
+
         if (!response.success || !response.data) {
           this.createError = response.message || 'The rental bill could not be created.';
           this.cdr.detectChanges();
           return;
         }
 
-        this.createSuccess = `Bill created. Calculated amount: ${this.money(response.data.amount)}.`;
+        this.createSuccess =
+          `Bill created. Calculated amount: ${this.money(response.data.amount)}.`;
+
         this.isCreateFormOpen = false;
         this.loadBills(1);
         this.openBill(response.data);
@@ -526,7 +646,10 @@ export class RentalBills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         this.isCreatingBill = false;
-        this.createError = this.getApiErrorMessage(error, 'The rental bill could not be created.');
+        this.createError = this.getApiErrorMessage(
+          error,
+          'The rental bill could not be created.'
+        );
         this.handleUnauthorized(error);
         this.cdr.detectChanges();
       }
@@ -544,9 +667,11 @@ export class RentalBills implements OnInit {
     this.detailsError = '';
     this.detailsSuccess = '';
     this.paymentError = '';
+
     this.ownerAuth.getOwnerRentalBill(token, bill.id).subscribe({
       next: (response) => {
         this.isLoadingDetails = false;
+
         if (!response.success || !response.data) {
           this.detailsError = response.message || 'Bill details could not be loaded.';
           this.cdr.detectChanges();
@@ -559,7 +684,10 @@ export class RentalBills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         this.isLoadingDetails = false;
-        this.detailsError = this.getApiErrorMessage(error, 'Could not load bill details.');
+        this.detailsError = this.getApiErrorMessage(
+          error,
+          'Could not load bill details.'
+        );
         this.handleUnauthorized(error);
         this.cdr.detectChanges();
       }
@@ -574,9 +702,11 @@ export class RentalBills implements OnInit {
 
   recordPayment(): void {
     const bill = this.selectedBill;
+
     if (!bill || this.isRecordingPayment || this.paymentAmount === null) {
       return;
     }
+
     if (this.paymentAmount <= 0) {
       this.paymentError = 'Enter a positive payment amount.';
       return;
@@ -589,6 +719,7 @@ export class RentalBills implements OnInit {
 
     this.isRecordingPayment = true;
     this.paymentError = '';
+
     this.ownerAuth.recordOwnerRentalPayment(token, bill.id, {
       amount: this.paymentAmount,
       payment_date: this.paymentDate,
@@ -596,6 +727,7 @@ export class RentalBills implements OnInit {
     }).subscribe({
       next: (response) => {
         this.isRecordingPayment = false;
+
         if (!response.success) {
           this.paymentError = response.message || 'The payment could not be recorded.';
           this.cdr.detectChanges();
@@ -610,7 +742,10 @@ export class RentalBills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         this.isRecordingPayment = false;
-        this.paymentError = this.getApiErrorMessage(error, 'The payment could not be recorded.');
+        this.paymentError = this.getApiErrorMessage(
+          error,
+          'The payment could not be recorded.'
+        );
         this.handleUnauthorized(error);
         this.cdr.detectChanges();
       }
@@ -621,6 +756,7 @@ export class RentalBills implements OnInit {
     if (this.isVoidingPayment) {
       return;
     }
+
     this.voidingPaymentId = payment.id;
     this.voidReason = '';
     this.voidError = '';
@@ -636,10 +772,12 @@ export class RentalBills implements OnInit {
 
   voidPayment(payment: RentalPaymentInfo): void {
     const reason = this.voidReason.trim();
+
     if (!reason || reason.length > 1000 || this.isVoidingPayment) {
       this.voidError = 'Enter a reason of no more than 1000 characters.';
       return;
     }
+
     if (!window.confirm('Void this payment? This action cannot be undone.')) {
       return;
     }
@@ -651,9 +789,11 @@ export class RentalBills implements OnInit {
 
     this.isVoidingPayment = true;
     this.voidError = '';
+
     this.ownerAuth.voidOwnerRentalPayment(token, payment.id, reason).subscribe({
       next: (response) => {
         this.isVoidingPayment = false;
+
         if (!response.success) {
           this.voidError = response.message || 'The payment could not be voided.';
           this.cdr.detectChanges();
@@ -669,7 +809,10 @@ export class RentalBills implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         this.isVoidingPayment = false;
-        this.voidError = this.getApiErrorMessage(error, 'The payment could not be voided.');
+        this.voidError = this.getApiErrorMessage(
+          error,
+          'The payment could not be voided.'
+        );
         this.handleUnauthorized(error);
         this.cdr.detectChanges();
       }
@@ -698,15 +841,22 @@ export class RentalBills implements OnInit {
     collected: OwnerTenantInfo[] = []
   ): Observable<OwnerTenantInfo[]> {
     const tenants = [...collected, ...page.data.data];
+
     if (page.data.current_page >= page.data.last_page) {
       return of(tenants);
     }
 
-    return this.ownerAuth.getOwnerTenants(token, page.data.current_page + 1, '', 100).pipe(
+    return this.ownerAuth.getOwnerTenants(
+      token,
+      page.data.current_page + 1,
+      '',
+      100
+    ).pipe(
       switchMap((nextPage) => {
         if (!this.isTenantPageResponse(nextPage)) {
           throw new Error('The tenant list response was not valid.');
         }
+
         return this.loadTenantPages(token, nextPage, tenants);
       })
     );
@@ -718,15 +868,20 @@ export class RentalBills implements OnInit {
     collected: BoardingHouseRoomInfo[] = []
   ): Observable<BoardingHouseRoomInfo[]> {
     const houses = [...collected, ...page.data];
+
     if (page.current_page >= page.last_page) {
       return of(houses);
     }
 
-    return this.ownerAuth.getOwnerBoardingHouses(token, page.current_page + 1).pipe(
+    return this.ownerAuth.getOwnerBoardingHouses(
+      token,
+      page.current_page + 1
+    ).pipe(
       switchMap((nextPage) => {
         if (!nextPage.success || !nextPage.data) {
           throw new Error('The boarding-house list response was not valid.');
         }
+
         return this.loadHousePages(token, nextPage.data, houses);
       })
     );
@@ -759,11 +914,13 @@ export class RentalBills implements OnInit {
 
   private getTokenOrRedirect(): string | null {
     const token = this.ownerAuth.getToken();
+
     if (!token) {
       void this.router.navigate(['/login'], {
         queryParams: { notice: 'session-expired' }
       });
     }
+
     return token;
   }
 
@@ -782,21 +939,24 @@ export class RentalBills implements OnInit {
     }
 
     const validationErrors = error.error?.errors;
+
     if (validationErrors && typeof validationErrors === 'object') {
       const messages = Object.values(validationErrors as Record<string, unknown>)
         .flatMap((value) => Array.isArray(value) ? value : [])
         .filter((value): value is string => typeof value === 'string');
+
       if (messages.length) {
         return messages.join(' ');
       }
     }
 
-    return typeof error.error?.message === 'string' ? error.error.message : fallback;
+    return typeof error.error?.message === 'string'
+      ? error.error.message
+      : fallback;
   }
 
   private currentMonth(): string {
-    const today = this.today();
-    return today.slice(0, 7);
+    return this.today().slice(0, 7);
   }
 
   private anniversaryCycle(
@@ -805,6 +965,7 @@ export class RentalBills implements OnInit {
   ): { start: string; end: string; dueDate: string } | null {
     const [year, month] = billingMonth.split('-').map(Number);
     const [moveInYear, moveInMonth, anchorDay] = moveInDate.split('-').map(Number);
+
     if (
       !year || !month || month < 1 || month > 12 ||
       !moveInYear || !moveInMonth || moveInMonth < 1 || moveInMonth > 12 ||
@@ -818,6 +979,7 @@ export class RentalBills implements OnInit {
     const nextMonth = month === 12 ? 1 : month + 1;
     const nextYear = month === 12 ? year + 1 : year;
     const nextStart = this.anniversaryDate(nextYear, nextMonth, anchorDay);
+
     const end = new Date(Date.UTC(
       Number(nextStart.slice(0, 4)),
       Number(nextStart.slice(5, 7)) - 1,
@@ -829,7 +991,10 @@ export class RentalBills implements OnInit {
 
   private anniversaryDate(year: number, month: number, anchorDay: number): string {
     const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(anchorDay, lastDay)).padStart(2, '0')}`;
+
+    return `${year}-${String(month).padStart(2, '0')}-${String(
+      Math.min(anchorDay, lastDay)
+    ).padStart(2, '0')}`;
   }
 
   private today(): string {
