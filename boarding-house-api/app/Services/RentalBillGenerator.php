@@ -17,12 +17,15 @@ class RentalBillGenerator
         ?Carbon $asOf = null
     ): int {
         $assignment = RoomAssignment::query()->findOrFail($assignmentId);
+
         $today = ($asOf ?? Carbon::now(config('app.timezone', 'UTC')))
             ->copy()
             ->startOfDay();
+
         $lastPeriodEnd = RentalBill::query()
             ->where('room_assignment_id', $assignment->id)
             ->max('rental_period_end');
+
         $start = $cycles->firstStartAfter($assignment, $lastPeriodEnd);
         $created = 0;
 
@@ -35,6 +38,7 @@ class RentalBillGenerator
             }
 
             $dueDate = $cycles->nextStart($assignment, $start);
+
             $bill = $this->generate(
                 (int) $assignment->id,
                 $start->toDateString(),
@@ -43,6 +47,7 @@ class RentalBillGenerator
                 skipExisting: true,
                 requireApprovedHouse: true
             );
+
             $created += $bill !== null ? 1 : 0;
             $start = $dueDate;
         }
@@ -70,13 +75,16 @@ class RentalBillGenerator
                 $requireApprovedHouse
             ): ?RentalBill {
                 $query = RoomAssignment::query()->lockForUpdate();
+
                 if ($tenantId !== null) {
                     $query->where('tenant_id', $tenantId);
                 }
+
                 $assignment = $query->findOrFail($assignmentId);
 
                 $start = Carbon::createFromFormat('Y-m-d', $periodStart)->startOfDay();
                 $end = Carbon::createFromFormat('Y-m-d', $periodEnd)->startOfDay();
+
                 if ($end->lt($start)) {
                     throw ValidationException::withMessages([
                         'rental_period_start' => [
@@ -100,6 +108,7 @@ class RentalBillGenerator
                 $room = $assignment->boardingHouseRoom()
                     ->lockForUpdate()
                     ->firstOrFail();
+
                 $boardingHouse = $room->boardingHouse()
                     ->lockForUpdate()
                     ->firstOrFail();
@@ -121,6 +130,7 @@ class RentalBillGenerator
                     ->whereDate('rental_period_start', '<=', $periodEnd)
                     ->whereDate('rental_period_end', '>=', $periodStart)
                     ->exists();
+
                 if ($existingBill) {
                     if ($skipExisting) {
                         return null;
@@ -136,13 +146,17 @@ class RentalBillGenerator
                 $overlapStart = $assignment->move_in_date->gt($start)
                     ? $assignment->move_in_date
                     : $start;
+
                 $overlapEnd = $assignment->move_out_date &&
                     $assignment->move_out_date->lt($end)
                     ? $assignment->move_out_date
                     : $end;
+
                 $billableDays = (int) $overlapStart->diffInDays($overlapEnd) + 1;
                 $billingPeriodDays = (int) $start->diffInDays($end) + 1;
+
                 $monthlyRentCents = RentalBill::toCents($assignment->monthly_rent);
+
                 $amountCents = $boardingHouse->billing_policy === 'full_monthly'
                     ? $monthlyRentCents
                     : self::proratedAmountInCents(
@@ -159,7 +173,7 @@ class RentalBillGenerator
                     ]);
                 }
 
-                return $assignment->rentalBills()->create([
+                $bill = $assignment->rentalBills()->create([
                     'amount' => self::formatCents($amountCents),
                     'billing_policy' => $boardingHouse->billing_policy,
                     'monthly_rent_snapshot' => $assignment->monthly_rent,
@@ -172,6 +186,26 @@ class RentalBillGenerator
                     'rental_period_end' => $periodEnd,
                     'due_date' => $dueDate,
                 ]);
+
+                // Send a notification only after the bill is committed.
+                DB::afterCommit(function () use ($assignment, $bill): void {
+                    $assignment->loadMissing('tenant.student');
+
+                    $student = $assignment->tenant?->student;
+
+                    if (! $student || $student->role !== 'student') {
+                        return;
+                    }
+
+                    $student->notify(
+                        new \App\Notifications\RentalBillGenerated(
+                            $bill,
+                            $assignment
+                        )
+                    );
+                });
+
+                return $bill;
             });
         } catch (UniqueConstraintViolationException $exception) {
             if ($skipExisting) {

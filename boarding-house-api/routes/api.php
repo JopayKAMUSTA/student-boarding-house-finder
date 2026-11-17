@@ -621,6 +621,20 @@ if (!$emailVerified) {
 
     Route::middleware('auth:sanctum')->group(function () {
 
+        Route::get('/student/notifications', [
+            \App\Http\Controllers\StudentNotificationController::class,
+            'index',
+        ]);
+
+        Route::patch('/student/notifications/{notification}/read', [
+            \App\Http\Controllers\StudentNotificationController::class,
+            'markAsRead',
+        ]);
+
+        Route::patch('/student/notifications/read-all', [
+            \App\Http\Controllers\StudentNotificationController::class,
+            'markAllAsRead',
+        ]);
         Route::get('/student/conversations/unread-count', [
             StudentConversationController::class,
             'unreadCount',
@@ -751,62 +765,130 @@ if (!$emailVerified) {
     });
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | PUBLIC BOARDING HOUSE LISTINGS
-    |--------------------------------------------------------------------------
-    */
+    
+/*
+|--------------------------------------------------------------------------
+| PUBLIC BOARDING HOUSE LISTINGS
+|--------------------------------------------------------------------------
+*/
 
-    Route::get('/boarding-houses', function (Request $request) {
+Route::get('/boarding-houses', function (Request $request) {
 
-        $request->validate([
-            'city' => ['nullable', 'string', 'max:100'],
-            'room_type' => ['nullable', 'string', 'max:100'],
-            'max_rent' => ['nullable', 'numeric', 'min:0'],
-        ]);
+    $request->validate([
+        'city' => ['nullable', 'string', 'max:100'],
+        'room_type' => ['nullable', 'string', 'max:100'],
+        'max_rent' => ['nullable', 'numeric', 'min:0'],
+    ]);
 
-        $boardingHouses = Boardinghouse::query()
-            ->where('status', 'approved')
-            ->when($request->filled('city'), function ($query) use ($request) {
-                $query->where(
-                    'city',
-                    'like',
-                    '%' . $request->city . '%'
-                );
+    $boardingHouses = Boardinghouse::query()
+        ->where('status', 'approved')
+        ->with([
+            'rooms.images',
+        ])
+        ->when($request->filled('city'), function ($query) use ($request) {
+            $query->where(
+                'city',
+                'like',
+                '%' . $request->city . '%'
+            );
+        })
+        ->when($request->filled('room_type'), function ($query) use ($request) {
+            $query->where('room_type', $request->room_type);
+        })
+        ->when($request->filled('max_rent'), function ($query) use ($request) {
+            $query->where('monthly_rent', '<=', $request->max_rent);
+        })
+        ->orderBy('monthly_rent')
+        ->paginate(10);
+
+    $boardingHouses->getCollection()->transform(function ($house) {
+
+        $allImages = $house->rooms
+            ->flatMap(function ($room) {
+
+                return $room->images->map(function ($image) {
+
+                    return [
+                        'id' => $image->id,
+                        'boarding_house_room_id' => $image->boarding_house_room_id,
+                        'image_path' => $image->image_path,
+                        'url' => \Illuminate\Support\Facades\Storage::disk('public')
+                            ->url($image->image_path),
+                    ];
+
+                });
+
             })
-            ->when($request->filled('room_type'), function ($query) use ($request) {
-                $query->where('room_type', $request->room_type);
-            })
-            ->when($request->filled('max_rent'), function ($query) use ($request) {
-                $query->where('monthly_rent', '<=', $request->max_rent);
-            })
-            ->orderBy('monthly_rent')
-            ->paginate(10);
+            ->values();
 
-        return response()->json([
-            'success' => true,
-            'data' => $boardingHouses,
-        ]);
+        $house->setAttribute('images', $allImages);
+
+        $house->setAttribute(
+            'cover_image_url',
+            $allImages->first()['url'] ?? null
+        );
+
+        return $house;
     });
 
-    Route::get('/boarding-houses/{id}', function ($id) {
+    return response()->json([
+        'success' => true,
+        'data' => $boardingHouses,
+    ]);
 
-        $boardingHouse = Boardinghouse::query()
-            ->where('status', 'approved')
-            ->find($id);
+});
 
-        if (!$boardingHouse) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Boarding house not found.',
-            ], 404);
-        }
+
+Route::get('/boarding-houses/{id}', function ($id) {
+
+    $boardingHouse = Boardinghouse::query()
+        ->where('status', 'approved')
+        ->with([
+            'rooms.images',
+        ])
+        ->find($id);
+
+    if (!$boardingHouse) {
 
         return response()->json([
-            'success' => true,
-            'data' => $boardingHouse,
-        ]);
-    });
+            'success' => false,
+            'message' => 'Boarding house not found.',
+        ], 404);
+
+    }
+
+    $allImages = $boardingHouse->rooms
+        ->flatMap(function ($room) {
+
+            return $room->images->map(function ($image) {
+
+                return [
+                    'id' => $image->id,
+                    'boarding_house_room_id' => $image->boarding_house_room_id,
+                    'image_path' => $image->image_path,
+                    'url' => \Illuminate\Support\Facades\Storage::disk('public')
+                        ->url($image->image_path),
+                ];
+
+            });
+
+        })
+        ->values();
+
+    $boardingHouse->setAttribute('images', $allImages);
+
+    $boardingHouse->setAttribute(
+        'cover_image_url',
+        $allImages->first()['url'] ?? null
+    );
+
+    return response()->json([
+        'success' => true,
+        'data' => $boardingHouse,
+    ]);
+
+});
+
 
     /*
     |--------------------------------------------------------------------------
@@ -1226,3 +1308,4 @@ Route::post('/reported-information', [
     Route::get('/user', function (Request $request) {
         return $request->user();
     })->middleware('auth:sanctum');
+
